@@ -9,25 +9,33 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
 <link rel="stylesheet" href="styles.css">
 <style>
-  body{display:flex;justify-content:center;}
-  .wrap{max-width:460px;width:100%;min-height:100vh;background:#fff;}
+  body{display:flex;justify-content:center;background:linear-gradient(135deg,#eaf3ff 0%,#f7fbff 42%,#fff4ed 100%);padding:28px 16px;}
+  .wrap{max-width:500px;width:100%;min-height:calc(100vh - 56px);background:#fff;border:1px solid rgba(255,255,255,.86);border-radius:24px;overflow:hidden;box-shadow:0 24px 70px rgba(10,45,89,.16);}
   .hero{
-    background:linear-gradient(160deg, var(--blue-600), var(--blue-400));
-    padding:34px 26px 26px;color:#fff;text-align:center;
-    box-shadow:0 14px 30px rgba(11,79,168,.18);
+    background:linear-gradient(145deg,#082d5b 0%,var(--blue-600) 55%,#218dea 100%);
+    padding:34px 30px 27px;color:#fff;text-align:center;position:relative;overflow:hidden;
   }
+  .hero:before,.hero:after{content:'';position:absolute;border-radius:50%;background:rgba(255,255,255,.09);pointer-events:none;}
+  .hero:before{width:220px;height:220px;right:-105px;top:-115px}.hero:after{width:145px;height:145px;left:-78px;bottom:-105px}
+  .hero > *{position:relative;z-index:1}
   .hero img{width:56px;height:56px;border-radius:16px;margin-bottom:14px;box-shadow:0 6px 18px rgba(0,0,0,.25);}
-  .hero h1{font-size:19px;margin:0 0 6px;font-weight:800;}
+  .hero h1{font-size:22px;margin:0 0 7px;font-weight:800;letter-spacing:-.03em;}
   .hero p{margin:0;font-size:13px;color:#DCEEFF;line-height:1.5;}
-  .form-area{padding:24px 24px 40px;}
-  .conditional{border-left:2.5px solid var(--blue-100);padding-left:12px;margin-top:10px;}
+  .form-area{padding:26px 30px 34px;}
+  .form-intro{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:12px;background:var(--blue-50);color:var(--blue-700);font-size:12px;font-weight:600;margin-bottom:22px;}.form-intro i{font-size:18px;color:var(--blue-500)}
+  .form-section{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--blue-600);margin:25px 0 3px;display:flex;align-items:center;gap:8px;}.form-section:after{content:'';height:1px;background:var(--line);flex:1}
+  .conditional{border-left:3px solid var(--blue-400);padding:2px 0 2px 13px;margin-top:12px;background:linear-gradient(90deg,var(--blue-50),transparent);border-radius:2px;}
   .success{display:none;text-align:center;padding:60px 26px;}
   .success .ic{
     width:74px;height:74px;border-radius:50%;background:var(--green-100);color:var(--green);
     display:flex;align-items:center;justify-content:center;font-size:34px;margin:0 auto 18px;
   }
-  .success h2{margin:0 0 8px;font-size:19px;}
+  .success h2{margin:0 0 8px;font-size:22px;}
   .success p{color:var(--muted);font-size:13.5px;margin:0 0 24px;}
+  .seg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;background:transparent;padding:0;}
+  .seg button{min-height:44px;justify-content:flex-start;text-align:left;background:#fff;border:1px solid var(--line);color:var(--ink-soft);box-shadow:none;font-size:12px;padding:9px 11px;}.seg button:hover{border-color:var(--blue-400);background:var(--blue-50)}.seg button.active{background:var(--blue-600);border-color:var(--blue-600);color:#fff;box-shadow:0 6px 14px rgba(11,79,168,.2)}
+  .field-row-2{gap:12px}.field-row-2 > div{min-width:0}.form-area .btn-ember{min-height:49px;border-radius:13px;box-shadow:0 10px 20px rgba(255,122,61,.24)}
+  @media(max-width:560px){body{padding:0;background:#fff}.wrap{min-height:100vh;border-radius:0;border:0;box-shadow:none}.hero{padding:30px 24px 25px}.form-area{padding:23px 20px 32px}.seg{grid-template-columns:1fr}.field-row-2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -39,6 +47,8 @@
       <p>Formulário da equipe — preencha com os dados de quem acabou de chegar.</p>
     </div>
     <div class="form-area">
+      <div class="form-intro"><i class="ti ti-heart-handshake"></i><span>Seu cuidado começa com um cadastro bem feito.</span></div>
+      <div class="form-section">Dados da pessoa</div>
       <label>Nome completo *</label>
       <input type="text" id="nome" placeholder="Nome completo, sem abreviar">
       <label>WhatsApp *</label>
@@ -46,6 +56,7 @@
       <label>E-mail (para o cadastro na plataforma) *</label>
       <input type="email" id="email" placeholder="nome@email.com">
       <label>Situação *</label>
+      <div class="form-section">Situação e acompanhamento</div>
       <div class="seg" id="categoriaSeg">
         <button type="button" data-v="visitante" onclick="setCategoria(this)">Visitante</button>
         <button type="button" data-v="convertido" onclick="setCategoria(this)">Aceitou Jesus agora</button>
@@ -100,7 +111,10 @@
         </div>
         <input type="hidden" id="quisGC">
       </div>
+      <label>Observação (opcional)</label>
+      <textarea id="notas" rows="3" placeholder="Alguma informação extra que ache importante registrar..."></textarea>
       <label>Quem está coletando essas informações? *</label>
+      <div class="form-section">Responsável pelo cadastro</div>
       <div class="seg" id="segColeta">
         <button type="button" data-v="Equipe de recepção" onclick="setColeta(this)">Equipe de recepção</button>
         <button type="button" data-v="Departamento" onclick="setColeta(this)">Departamento</button>
@@ -224,6 +238,7 @@ function enviar(){
     temCarta: document.getElementById('temCarta').value,
     funcaoMinisterial: document.getElementById('funcaoMinisterial').value.trim(),
     quisGC: document.getElementById('quisGC').value,
+    notas: document.getElementById('notas').value.trim(),
     quemColeta: quemColeta,
     departamento: document.getElementById('departamento').value,
     stage: categoriaAtual
@@ -232,7 +247,7 @@ function enviar(){
   document.getElementById('successScreen').style.display = 'block';
 }
 function novoCadastro(){
-  var ids = ['nome','telefone','email','bairro','idade','igrejaAnterior','funcaoMinisterial'];
+  var ids = ['nome','telefone','email','bairro','idade','igrejaAnterior','funcaoMinisterial','notas'];
   ids.forEach(function(id){ document.getElementById(id).value = ''; });
   document.getElementById('estadoCivil').value = '';
   document.getElementById('nomeConjuge').value = '';
