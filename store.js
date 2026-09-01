@@ -11,8 +11,26 @@ var SUPABASE_URL = 'https://kyxxlkqfzrrcikcajyjt.supabase.co/rest/v1/';
 var SUPABASE_KEY = 'sb_publishable_t3pBGGgcuGtAaKkNinOESw_wzC6Ruuq';
 
 // --- inChurch API via proxy (evita CORS no navegador) ---
+// O proxy (index.ts no Supabase) é genérico: repassa qualquer caminho
+// que vier depois de "/inchurch-proxy" direto pra API do inChurch.
 var INCHURCH_PROXY_URL = 'https://kyxxlkqfzrrcikcajyjt.supabase.co/functions/v1/inchurch-proxy';
 var INCHURCH_CHURCH_ID = 36014;
+
+// --- Mapeamento opcional: congregação -> church_id no inChurch ---
+// Preencha aqui se cada congregação sua for uma "igreja" separada no
+// inChurch. Deixe vazio {} se todas usam o mesmo INCHURCH_CHURCH_ID.
+// Exemplo: { 'Sede': 36014, 'Congregação Bairro X': 40021 }
+var CONGREGACAO_CHURCH_ID = {};
+
+// OBS sobre Grupo de Crescimento (GC): no inChurch, GC = Célula, e a API
+// pública de Células (/v1/cell/) é SOMENTE LEITURA — não existe endpoint
+// para vincular uma pessoa a uma célula via API. Por isso "quisGC" fica
+// só registrado aqui no Supabase mesmo; não tem como sincronizar
+// automaticamente com o inChurch até eles abrirem esse endpoint.
+
+// --- Mapeamento opcional: nome do departamento -> ID do grupo no inChurch ---
+// Mesma lógica do GC acima. Exemplo: { 'UCADERV': 501, 'MAAD': 502 }
+var DEPARTAMENTO_GROUP_ID = {};
 
 // --- Cache em memória ---
 var _peopleCache = [];
@@ -87,6 +105,28 @@ async function supabaseRequest(method, table, body, query){
   }catch(err){
     console.error('Supabase falha:', method, err);
     return null;
+  }
+}
+
+// --- Helper: chamada à API do inChurch via proxy ---
+async function inchurchRequest(method, path, body){
+  try{
+    var res = await fetch(INCHURCH_PROXY_URL + path, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    var text = await res.text();
+    var json = null;
+    try{ json = text ? JSON.parse(text) : null; }catch(e){ /* resposta não era JSON */ }
+    if(!res.ok){
+      console.error('[inChurch]', method, path, res.status, text);
+      return { ok:false, status:res.status, error:text, data:json };
+    }
+    return { ok:true, status:res.status, data:json };
+  }catch(err){
+    console.error('[inChurch] falha de rede:', method, path, err);
+    return { ok:false, status:0, error:String(err), data:null };
   }
 }
 
@@ -283,88 +323,97 @@ const Store = {
 
   async syncPreCadastro(person){
     console.log('[inChurch] Iniciando pré-cadastro para:', person.nome);
-    try{
-      // Mapa válido de estágios para church_profile inChurch
-      // inChurch only accepts: visitor, frequent, member
-      var churchProfileMap = {
-        'visitante': 'visitor',      // novo visitante
-        'convertido': 'visitor',     // visitante que aceitou Jesus (ainda pending)
-        'reconciliado': 'frequent',  // frequentista reconciliado
-        'novo_membro': 'member'      // membro completo
-      };
-      
-      // Status fluxo de aprovação
-      var statusMap = {
-        'visitante': 'pending',
-        'convertido': 'pending',
-        'reconciliado': 'approved',
-        'novo_membro': 'approved'
-      };
-      
-      var body = {
-        full_name: person.nome,
-        email: person.email,
-        phone: person.telefone,
-        church_id: INCHURCH_CHURCH_ID,
-        status: statusMap[person.stage] || 'pending',
-        church_profile: churchProfileMap[person.stage] || 'visitor',
-        accepted_jesus: person.stage !== 'visitante',
-        first_visit_date: new Date().toISOString().split('T')[0]
-      };
-      console.log('[inChurch] URL:', INCHURCH_PROXY_URL);
-      console.log('[inChurch] Body:', JSON.stringify(body));
-      var res = await fetch(INCHURCH_PROXY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      console.log('[inChurch] Status:', res.status);
-      if(!res.ok){
-        var errText = await res.text();
-        console.error('[inChurch] Erro:', res.status, errText);
-        this.updatePerson(person.id, { pendingSync: true, syncError: errText });
-        return;
-      }
-      var json = await res.json();
-      console.log('[inChurch] Sucesso! ID:', json.id);
-      this.updatePerson(person.id, { pendingSync: false, inchurchId: json.id || null, syncError: '' });
-    }catch(err){
-      console.error('[inChurch] Falha ao chamar proxy:', err);
-      this.updatePerson(person.id, { pendingSync: true, syncError: String(err) });
+
+    // status aceita apenas: pending | approved | refused
+    // church_profile aceita apenas: visitor | frequent | member
+    var churchProfileMap = {
+      'visitante': 'visitor',
+      'convertido': 'frequent',
+      'reconciliado': 'frequent',
+      'novo_membro': 'member'
+    };
+    var statusMap = {
+      'visitante': 'pending',
+      'convertido': 'pending',
+      'reconciliado': 'approved',
+      'novo_membro': 'approved'
+    };
+
+    var churchId = CONGREGACAO_CHURCH_ID[person.congregacao] || INCHURCH_CHURCH_ID;
+
+    var body = {
+      full_name: person.nome,
+      email: person.email,
+      mobile_phone: person.telefone,
+      church_id: churchId,
+      status: statusMap[person.stage] || 'pending',
+      church_profile: churchProfileMap[person.stage] || 'visitor',
+      accepted_jesus: person.stage !== 'visitante',
+      first_visit_date: new Date().toISOString().split('T')[0]
+    };
+
+    if(person.estadoCivil){ body.marital_status = person.estadoCivil; }
+    if(person.igrejaAnterior){ body.previous_church = person.igrejaAnterior; }
+
+    // Junta carta de transferência + função ministerial num único campo de texto livre,
+    // já que a API não tem um campo específico para cada um.
+    var joiningReasonParts = [];
+    if(person.temCarta){ joiningReasonParts.push('Carta de transferência: ' + person.temCarta); }
+    if(person.funcaoMinisterial){ joiningReasonParts.push('Função ministerial anterior: ' + person.funcaoMinisterial); }
+    if(joiningReasonParts.length){ body.joining_reason = joiningReasonParts.join(' | '); }
+
+    // Bairro vai dentro do objeto location (endereço)
+    if(person.bairro){
+      body.location_type = 'national';
+      body.location = { neighborhood: person.bairro };
+    }
+
+    console.log('[inChurch] Body:', JSON.stringify(body));
+    var result = await inchurchRequest('POST', '/v1/people/', body);
+
+    if(!result.ok){
+      this.updatePerson(person.id, { pendingSync: true, syncError: result.error || 'Erro desconhecido' });
+      return;
+    }
+
+    var inchurchId = result.data && result.data.id;
+    console.log('[inChurch] Sucesso! ID:', inchurchId);
+    this.updatePerson(person.id, { pendingSync: false, inchurchId: inchurchId || null, syncError: '' });
+
+    // Vincula ao Departamento, se informado e o ID do grupo estiver configurado
+    // (isso usa Group Segmentation, que é diferente de Células — ver OBS acima)
+    if(inchurchId && person.departamento && DEPARTAMENTO_GROUP_ID[person.departamento]){
+      await inchurchRequest('POST', '/v1/group/' + DEPARTAMENTO_GROUP_ID[person.departamento] + '/memberships/', { person: inchurchId });
     }
   },
 
   async syncMembroFinal(person){
-    try{
-      if(!person.inchurchId){
-        this.updatePerson(person.id, { pendingSyncMembro: true, syncError: 'Sem inchurchId' });
-        return;
-      }
-      console.log('[inChurch] Marcando como membro:', person.nome, '(ID:', person.inchurchId, ')');
-      var res = await fetch(INCHURCH_PROXY_URL + '/' + person.inchurchId + '/', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          full_name: person.nome,
-          is_member: true,
-          status: 'active',
-          church_profile: 'member',
-          accepted_jesus: true,
-          church_id: INCHURCH_CHURCH_ID
-        })
-      });
-      console.log('[inChurch] Status (membro):', res.status);
-      if(!res.ok){
-        var errText = await res.text();
-        console.error('inChurch API erro (membro):', res.status, errText);
-        this.updatePerson(person.id, { pendingSyncMembro: true, syncError: errText });
-        return;
-      }
-      this.updatePerson(person.id, { pendingSyncMembro: false, syncError: '' });
-    }catch(err){
-      console.error('inChurch API falha (membro):', err);
-      this.updatePerson(person.id, { pendingSyncMembro: true, syncError: String(err) });
+    if(!person.inchurchId){
+      this.updatePerson(person.id, { pendingSyncMembro: true, syncError: 'Sem inchurchId' });
+      return;
     }
+    console.log('[inChurch] Marcando como membro:', person.nome, '(ID:', person.inchurchId, ')');
+
+    var churchId = CONGREGACAO_CHURCH_ID[person.congregacao] || INCHURCH_CHURCH_ID;
+
+    // status só aceita pending | approved | refused — "active" não existe no schema oficial.
+    var body = {
+      full_name: person.nome,
+      status: 'approved',
+      church_profile: 'member',
+      accepted_jesus: true,
+      is_active: true,
+      church_id: churchId
+    };
+    if(person.estadoCivil){ body.marital_status = person.estadoCivil; }
+
+    var result = await inchurchRequest('PATCH', '/v1/people/' + person.inchurchId + '/', body);
+
+    if(!result.ok){
+      this.updatePerson(person.id, { pendingSyncMembro: true, syncError: result.error || 'Erro desconhecido' });
+      return;
+    }
+    this.updatePerson(person.id, { pendingSyncMembro: false, syncError: '' });
   },
 };
 

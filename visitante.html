@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Bem-vindo(a) — AD Rio Verde</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -27,6 +28,7 @@
   }
   .success h2{margin:0 0 8px;font-size:19px;}
   .success p{color:var(--muted);font-size:13.5px;margin:0 0 24px;}
+  .welcome-video{width:100%;aspect-ratio:16/9;border:0;border-radius:12px;box-shadow:0 8px 22px rgba(11,79,168,.18);}
 </style>
 </head>
 <body>
@@ -66,12 +68,6 @@
         <label>Nome do cônjuge *</label>
         <input type="text" id="nomeConjuge" placeholder="Nome completo do(a) cônjuge">
       </div>
-      <label>Gostaria de participar de um Grupo de Crescimento? *</label>
-      <div class="seg" id="segGC">
-        <button type="button" data-v="Sim" onclick="setGC(this)">Sim</button>
-        <button type="button" data-v="Não" onclick="setGC(this)">Não</button>
-      </div>
-      <input type="hidden" id="quisGC">
       <label>Quer deixar um pedido de oração? (opcional)</label>
       <textarea id="pedidoOracao" placeholder="Fique à vontade..."></textarea>
       <button class="btn-ember block" style="margin-top:22px" onclick="enviar()">
@@ -83,6 +79,7 @@
     <div class="ic"><i class="ti ti-check"></i></div>
     <h2>Recebemos seus dados!</h2>
     <p>Foi muito bom ter você com a gente. Em breve alguém da nossa equipe vai te procurar.</p>
+    <iframe id="welcomeVideo" class="welcome-video" title="Mensagem de boas-vindas" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -101,11 +98,6 @@ function toggleConjugeCampo(){
   wrap.style.display = mostrar ? 'block' : 'none';
   if(!mostrar){ input.value = ''; }
 }
-function setGC(btn){
-  document.querySelectorAll('#segGC button').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
-  document.getElementById('quisGC').value = btn.dataset.v;
-}
 function enviar(){
   var nome = document.getElementById('nome').value.trim();
   if(!nome){ showToast('Preencha seu nome completo.'); return; }
@@ -119,8 +111,6 @@ function enviar(){
   if(!estadoCivil){ showToast('Selecione seu estado civil.'); return; }
   var nomeConjuge = document.getElementById('nomeConjuge').value.trim();
   if(estadoCivil === 'Casado(a)' && !nomeConjuge){ showToast('Digite o nome do cônjuge.'); return; }
-  var quisGC = document.getElementById('quisGC').value;
-  if(!quisGC){ showToast('Selecione se gostaria de participar de um GC.'); return; }
   Store.addPerson({
     nome: nome,
     telefone: telefone,
@@ -129,13 +119,13 @@ function enviar(){
     idade: idade,
     estadoCivil: estadoCivil,
     nomeConjuge: nomeConjuge,
-    quisGC: quisGC,
     pedidoOracao: document.getElementById('pedidoOracao').value.trim(),
     quemColeta: 'Autocadastro (QR code)',
     stage: 'visitante'
   });
   document.getElementById('formScreen').style.display = 'none';
   document.getElementById('successScreen').style.display = 'block';
+  document.getElementById('welcomeVideo').src = 'https://www.youtube.com/embed/OsXFys3S_c0?autoplay=1&rel=0';
 }
 </script>
 </body>
