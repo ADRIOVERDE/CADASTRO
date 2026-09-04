@@ -693,7 +693,7 @@ function selectSearchResult(id){
 
 function csvEscape(val){
   val=(val===undefined||val===null)?'':String(val);
-  if(/[",\n;]/.test(val))return '"'+val.replace(/"/g,'""')+'"';
+  if(/[";\n\r]/.test(val))return '"'+val.replace(/"/g,'""')+'"';
   return val;
 }
 function formatDateBR(iso){
@@ -701,14 +701,14 @@ function formatDateBR(iso){
   return new Date(iso).toLocaleDateString('pt-BR');
 }
 function peopleToCSV(list){
-  var headers=['Nome','WhatsApp','E-mail','Bairro','Idade','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Congregação','Departamento','Quem coletou','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch'];
+  var headers=['Nome','WhatsApp','E-mail','Bairro','Idade','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Congregação','Departamento','Quem cadastrou','Quem coletou','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch'];
   var rows=list.map(function(p){
     var stage=STAGES.find(function(s){return s.id===p.stage;});
     var sub=p.subStage?((SUB_STAGES.find(function(s){return s.id===p.subStage;})||{}).label||p.subStage):'';
-    return [p.nome,p.telefone,p.email,p.bairro,p.idade,p.estadoCivil,p.nomeConjuge,stage?stage.label:p.stage,sub,p.congregacao,p.departamento,p.quemColeta,formatDateBR(p.createdAt),formatDateBR(lastHistoryDate(p)),daysSince(lastHistoryDate(p)),p.pendingSync?'Sim':'Não']
-      .map(csvEscape).join(',');
+    return [p.nome,p.telefone,p.email,p.bairro,p.idade,p.estadoCivil,p.nomeConjuge,stage?stage.label:p.stage,sub,p.congregacao,p.departamento,p.nomeCadastrador,p.quemColeta,formatDateBR(p.createdAt),formatDateBR(lastHistoryDate(p)),daysSince(lastHistoryDate(p)),p.pendingSync?'Sim':'Não']
+        .map(csvEscape).join(';');
   });
-  return headers.join(',')+'\r\n'+rows.join('\r\n');
+      return headers.join(';')+'\r\n'+rows.join('\r\n');
 }
 function downloadCSV(filename,content){
   var blob=new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8;'});
@@ -801,7 +801,8 @@ function openPerson(id){
   if(p.funcaoMinisterial)h+=fld('Função ministerial',p.funcaoMinisterial);
   if(p.quisGC)h+=fld('Quer participar de GC',p.quisGC);
   if(p.pedidoOracao)h+=fld('Pedido de oração',p.pedidoOracao);
-  if(p.quemColeta)h+=fld('Quem coletou',p.quemColeta);
+  if(p.nomeCadastrador)h+=fld('Quem cadastrou',p.nomeCadastrador);
+  if(p.quemColeta)h+=fld('Tipo de coleta',p.quemColeta);
   if(p.departamento)h+=fld('Departamento',p.departamento);
   if(p.stage==='gc'){
     h+='<div class="detail-section"><h4>Agente integrante</h4><div class="agente-field">'+

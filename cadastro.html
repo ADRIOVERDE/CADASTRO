@@ -55,6 +55,53 @@
       <input type="tel" id="telefone" placeholder="(62) 9 0000-0000">
       <label>E-mail (para o cadastro na plataforma) *</label>
       <input type="email" id="email" placeholder="nome@email.com">
+      <label>Igreja que a pessoa frequenta *</label>
+      <select id="congregacao">
+        <option value="">Selecione a igreja</option>
+        <option value="36034">AD | Amorinópolis</option>
+        <option value="36026">AD | Aragarças</option>
+        <option value="36035">AD | Arenópolis</option>
+        <option value="36036">AD | Barra do Garças</option>
+        <option value="36037">AD | Betel</option>
+        <option value="36038">AD | Boa Vista</option>
+        <option value="36039">AD | Bom Jardim</option>
+        <option value="36040">AD | Caiapônia</option>
+        <option value="36041">AD | Canaã</option>
+        <option value="36042">AD | Céu Azul/Girassol</option>
+        <option value="36043">AD | Dona Ilza</option>
+        <option value="36044">AD | Doverlândia</option>
+        <option value="36045">AD | Gameleira 1</option>
+        <option value="36046">AD | Genoveva</option>
+        <option value="36047">AD | Jardim Adriana</option>
+        <option value="36027">AD | Jardim Floresta</option>
+        <option value="36048">AD | Jardim Helena</option>
+        <option value="36049">AD | Lage</option>
+        <option value="36050">AD | Laranjeiras</option>
+        <option value="36051">AD | Maranata</option>
+        <option value="36052">AD | Mariana</option>
+        <option value="36053">AD | Montividu</option>
+        <option value="36054">AD | Morada do Sol</option>
+        <option value="36028">AD | Palestina</option>
+        <option value="36055">AD | Paulo Campos</option>
+        <option value="36056">AD | Piranhas</option>
+        <option value="36057">AD | Planalto Verde</option>
+        <option value="36015">AD | Pontal dos Buritis</option>
+        <option value="36016">AD | Popular</option>
+        <option value="36017">AD | Primavera</option>
+        <option value="36018">AD | Promissão</option>
+        <option value="36019">AD | Recanto do Bosque</option>
+        <option value="36020">AD | Riverlândia</option>
+        <option value="36021">AD | Rondonópolis</option>
+        <option value="36029">AD | Santo Agostinho</option>
+        <option value="36022">AD | Santo Antônio da Barra</option>
+        <option value="36014">AD | Sede</option>
+        <option value="36023">AD | Serra Dourada</option>
+        <option value="36024">AD | Vaianópolis</option>
+        <option value="36025">AD | Veneza</option>
+        <option value="36030">AD | Vila Borges</option>
+        <option value="36031">AD | Vila Maria</option>
+        <option value="36032">AD | Vila Olinda</option>
+      </select>
       <label>Situação *</label>
       <div class="form-section">Situação e acompanhamento</div>
       <div class="seg" id="categoriaSeg">
@@ -120,6 +167,8 @@
         <button type="button" data-v="Departamento" onclick="setColeta(this)">Departamento</button>
       </div>
       <input type="hidden" id="quemColeta">
+      <label>Seu nome (quem está cadastrando) *</label>
+      <input type="text" id="nomeCadastrador" placeholder="Digite seu nome completo">
       <div id="wrapDepartamento" class="conditional" style="display:none">
         <label>Qual departamento? *</label>
         <select id="departamento">
@@ -195,6 +244,8 @@ function enviar(){
   if(!telefone){ showToast('Preencha o WhatsApp.'); return; }
   var email = document.getElementById('email').value.trim();
   if(!email){ showToast('Preencha o e-mail.'); return; }
+  var congregacao = document.getElementById('congregacao').value;
+  if(!congregacao){ showToast('Selecione a igreja que a pessoa frequenta.'); return; }
   if(!categoriaAtual){ showToast('Escolha a situação da pessoa.'); return; }
   var bairro = document.getElementById('bairro').value.trim();
   if(!bairro){ showToast('Preencha o bairro.'); return; }
@@ -226,10 +277,13 @@ function enviar(){
     var depto = document.getElementById('departamento').value;
     if(!depto){ showToast('Selecione o departamento.'); return; }
   }
+  var nomeCadastrador = document.getElementById('nomeCadastrador').value.trim();
+  if(!nomeCadastrador){ showToast('Digite o nome de quem está cadastrando.'); return; }
   Store.addPerson({
     nome: nome,
     telefone: telefone,
     email: email,
+    congregacao: congregacao,
     bairro: bairro,
     idade: idade,
     estadoCivil: estadoCivil,
@@ -239,6 +293,7 @@ function enviar(){
     funcaoMinisterial: document.getElementById('funcaoMinisterial').value.trim(),
     quisGC: document.getElementById('quisGC').value,
     notas: document.getElementById('notas').value.trim(),
+    nomeCadastrador: nomeCadastrador,
     quemColeta: quemColeta,
     departamento: document.getElementById('departamento').value,
     stage: categoriaAtual
@@ -247,8 +302,9 @@ function enviar(){
   document.getElementById('successScreen').style.display = 'block';
 }
 function novoCadastro(){
-  var ids = ['nome','telefone','email','bairro','idade','igrejaAnterior','funcaoMinisterial','notas'];
+  var ids = ['nome','telefone','email','bairro','idade','igrejaAnterior','funcaoMinisterial','notas','nomeCadastrador'];
   ids.forEach(function(id){ document.getElementById(id).value = ''; });
+  document.getElementById('congregacao').value = '';
   document.getElementById('estadoCivil').value = '';
   document.getElementById('nomeConjuge').value = '';
   document.getElementById('temCarta').value = '';

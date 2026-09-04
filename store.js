@@ -135,6 +135,7 @@ function toDb(p){
   return {
     id: p.id,
     nome: p.nome || '',
+    nome_cadastrador: p.nomeCadastrador || '',
     telefone: p.telefone || '',
     email: p.email || '',
     bairro: p.bairro || '',
@@ -169,6 +170,7 @@ function fromDb(row){
   return {
     id: row.id,
     nome: row.nome || '',
+    nomeCadastrador: row.nome_cadastrador || '',
     telefone: row.telefone || '',
     email: row.email || '',
     bairro: row.bairro || '',
@@ -221,6 +223,7 @@ const Store = {
     var p = {
       id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
       nome: data.nome || '',
+      nomeCadastrador: data.nomeCadastrador || '',
       telefone: data.telefone || '',
       email: data.email || '',
       bairro: data.bairro || '',
@@ -339,7 +342,7 @@ const Store = {
       'novo_membro': 'approved'
     };
 
-    var churchId = CONGREGACAO_CHURCH_ID[person.congregacao] || INCHURCH_CHURCH_ID;
+    var churchId = Number(person.congregacao) || CONGREGACAO_CHURCH_ID[person.congregacao] || INCHURCH_CHURCH_ID;
 
     var body = {
       full_name: person.nome,
@@ -394,7 +397,7 @@ const Store = {
     }
     console.log('[inChurch] Marcando como membro:', person.nome, '(ID:', person.inchurchId, ')');
 
-    var churchId = CONGREGACAO_CHURCH_ID[person.congregacao] || INCHURCH_CHURCH_ID;
+    var churchId = Number(person.congregacao) || CONGREGACAO_CHURCH_ID[person.congregacao] || INCHURCH_CHURCH_ID;
 
     // status só aceita pending | approved | refused — "active" não existe no schema oficial.
     var body = {
