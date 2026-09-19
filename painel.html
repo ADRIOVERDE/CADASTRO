@@ -710,8 +710,46 @@ function peopleToCSV(list){
   });
       return headers.join(';')+'\r\n'+rows.join('\r\n');
 }
-function downloadCSV(filename,content){
-  var blob=new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8;'});
+function excelEscape(val){
+  return String(val===undefined||val===null?'':val).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function excelCell(value, className){
+  return '<td class="'+(className||'text')+'">'+excelEscape(value)+'</td>';
+}
+function excelDateCell(iso){
+  if(!iso)return excelCell('','date');
+  var date=new Date(iso);
+  var serial=(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())-Date.UTC(1899,11,30))/86400000;
+  return excelCell(serial,'date');
+}
+function downloadExcel(filename,list){
+  var headers=['Nome','WhatsApp','E-mail','Bairro','Idade','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Congregação','Departamento','Quem cadastrou','Quem coletou','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch'];
+  var rows=list.map(function(p){
+    var stage=STAGES.find(function(s){return s.id===p.stage;});
+    var sub=p.subStage?((SUB_STAGES.find(function(s){return s.id===p.subStage;})||{}).label||p.subStage):'';
+    return '<tr>'+[
+      excelCell(p.nome),
+      excelCell(String(p.telefone||'').replace(/\\D/g,''),'phone'),
+      excelCell(p.email),
+      excelCell(p.bairro),
+      excelCell(p.idade,'number'),
+      excelCell(p.estadoCivil),
+      excelCell(p.nomeConjuge),
+      excelCell(stage?stage.label:p.stage),
+      excelCell(sub),
+      excelCell(p.congregacao,'number'),
+      excelCell(p.departamento),
+      excelCell(p.nomeCadastrador),
+      excelCell(p.quemColeta),
+      excelDateCell(p.createdAt),
+      excelDateCell(lastHistoryDate(p)),
+      excelCell(daysSince(lastHistoryDate(p)),'number'),
+      excelCell(p.pendingSync?'Sim':'Não')
+    ].join('')+'</tr>';
+  });
+  var table='<table><thead><tr>'+headers.map(function(h){return excelCell(h,'header');}).join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table>';
+  var content='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>table{border-collapse:collapse}td{border:1px solid #ccc;padding:5px}.header{font-weight:bold;background:#d9eaf7}.phone{mso-number-format:"0"}.number{mso-number-format:"0"}.date{mso-number-format:"dd/mm/yyyy"}.text{mso-number-format:"\\@"}</style></head><body>'+table+'</body></html>';
+  var blob=new Blob(['\uFEFF'+content],{type:'application/vnd.ms-excel;charset=utf-8;'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
   a.href=url;a.download=filename;
@@ -721,10 +759,9 @@ function downloadCSV(filename,content){
 function exportReport(scopeStageId){
   var list = scopeStageId ? Store.peopleInStage(scopeStageId,document.getElementById('congSelect').value) : peopleFiltered();
   if(!list.length){showToast('Nenhuma pessoa para exportar.');return;}
-  var csv=peopleToCSV(list);
   var suffix=scopeStageId?('-'+scopeStageId):'-completo';
-  var name='relatorio-jornada'+suffix+'-'+new Date().toISOString().slice(0,10)+'.csv';
-  downloadCSV(name,csv);
+  var name='relatorio-jornada'+suffix+'-'+new Date().toISOString().slice(0,10)+'.xls';
+  downloadExcel(name,list);
   showToast('Relatório exportado ('+list.length+' pessoas).');
 }
 

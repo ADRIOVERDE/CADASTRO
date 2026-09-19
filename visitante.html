@@ -10,25 +10,36 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
 <link rel="stylesheet" href="styles.css">
 <style>
-  body{display:flex;justify-content:center;}
-  .wrap{max-width:460px;width:100%;min-height:100vh;background:#fff;}
+  body{display:flex;justify-content:center;background:linear-gradient(145deg,#eaf4ff 0%,#f7fbff 52%,#fff4ed 100%);}
+  .wrap{max-width:460px;width:100%;min-height:100vh;background:#fff;box-shadow:0 0 45px rgba(15,35,64,.1);}
   .hero{
     background:linear-gradient(160deg, var(--blue-600), var(--blue-400));
-    padding:38px 26px 30px;color:#fff;text-align:center;
+    padding:42px 26px 34px;color:#fff;text-align:center;position:relative;overflow:hidden;
     box-shadow:0 14px 30px rgba(11,79,168,.18);
   }
+  .hero:after{content:"";position:absolute;width:190px;height:190px;border:1px solid rgba(255,255,255,.18);border-radius:50%;right:-82px;bottom:-110px;box-shadow:0 0 0 18px rgba(255,255,255,.06),0 0 0 36px rgba(255,255,255,.04);}
+  .hero>*{position:relative;z-index:1;}
   .hero img{width:64px;height:64px;border-radius:18px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,.25);}
   .hero h1{font-size:22px;margin:0 0 8px;font-weight:800;}
   .hero p{margin:0;font-size:13.5px;color:#DCEEFF;line-height:1.5;}
-  .form-area{padding:26px 24px 40px;}
-  .success{display:none;text-align:center;padding:60px 26px;}
+  .form-area{padding:30px 24px 44px;}
+  .success{display:none;text-align:center;padding:76px 30px 48px;}
   .success .ic{
-    width:74px;height:74px;border-radius:50%;background:var(--green-100);color:var(--green);
+    width:78px;height:78px;border-radius:24px;background:var(--green-100);color:var(--green);
     display:flex;align-items:center;justify-content:center;font-size:34px;margin:0 auto 18px;
+    box-shadow:0 10px 24px rgba(30,158,107,.14);
   }
+  .success .ic svg{width:38px;height:38px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+  .success.is-visible .ic{animation:confirmation-pop .65s cubic-bezier(.2,.9,.3,1.25) both;}
+  .success.is-visible .ic svg path{stroke-dasharray:24;stroke-dashoffset:24;animation:confirmation-check .45s .35s ease-out forwards;}
+  .success.is-visible h2,.success.is-visible p{animation:confirmation-rise .5s .18s ease-out both;}
+  @keyframes confirmation-pop{0%{opacity:0;transform:scale(.35) rotate(-12deg)}70%{opacity:1;transform:scale(1.1) rotate(3deg)}100%{transform:scale(1) rotate(0)}}
+  @keyframes confirmation-check{to{stroke-dashoffset:0}}
+  @keyframes confirmation-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
   .success h2{margin:0 0 8px;font-size:19px;}
   .success p{color:var(--muted);font-size:13.5px;margin:0 0 24px;}
-  .welcome-video{width:100%;aspect-ratio:16/9;border:0;border-radius:12px;box-shadow:0 8px 22px rgba(11,79,168,.18);}
+  .success .new-registration{margin-top:8px;}
+  .success.is-visible .new-registration{animation:confirmation-rise .5s .35s ease-out both;}
 </style>
 </head>
 <body>
@@ -44,42 +55,24 @@
       <input type="text" id="nome" placeholder="Como você se chama?">
       <label>WhatsApp *</label>
       <input type="tel" id="telefone" placeholder="(62) 9 0000-0000">
-      <label>E-mail (para cadastro na plataforma)</label>
-      <input type="email" id="email" placeholder="nome@email.com">
-      <div class="field-row-2">
-        <div>
-          <label>Bairro *</label>
-          <input type="text" id="bairro" placeholder="Onde você mora">
-        </div>
-        <div>
-          <label>Idade *</label>
-          <input type="number" id="idade" placeholder="Anos" min="0">
-        </div>
-      </div>
-      <label>Estado civil *</label>
-      <select id="estadoCivil" onchange="toggleConjugeCampo()">
+      <label>Faz parte de alguma igreja? *</label>
+      <select id="fazParteIgreja">
         <option value="">Selecione</option>
-        <option>Solteiro(a)</option>
-        <option>Casado(a)</option>
-        <option>Divorciado(a)</option>
-        <option>Viúvo(a)</option>
+        <option value="Sim">Sim</option>
+        <option value="Não">Não</option>
       </select>
-      <div id="wrapConjuge" style="display:none">
-        <label>Nome do cônjuge *</label>
-        <input type="text" id="nomeConjuge" placeholder="Nome completo do(a) cônjuge">
-      </div>
-      <label>Quer deixar um pedido de oração? (opcional)</label>
-      <textarea id="pedidoOracao" placeholder="Fique à vontade..."></textarea>
       <button class="btn-ember block" style="margin-top:22px" onclick="enviar()">
         <i class="ti ti-send"></i>Enviar
       </button>
     </div>
   </div>
   <div class="success" id="successScreen">
-    <div class="ic"><i class="ti ti-check"></i></div>
+    <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg></div>
     <h2>Recebemos seus dados!</h2>
     <p>Foi muito bom ter você com a gente. Em breve alguém da nossa equipe vai te procurar.</p>
-    <iframe id="welcomeVideo" class="welcome-video" title="Mensagem de boas-vindas" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+    <button class="btn-outline block new-registration" type="button" onclick="cadastrarOutro()">
+      <i class="ti ti-user-plus"></i>Cadastrar outro
+    </button>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -90,42 +83,33 @@ function showToast(msg){
   t.textContent = msg; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
-function toggleConjugeCampo(){
-  var estadoCivil = document.getElementById('estadoCivil').value;
-  var wrap = document.getElementById('wrapConjuge');
-  var input = document.getElementById('nomeConjuge');
-  var mostrar = estadoCivil === 'Casado(a)';
-  wrap.style.display = mostrar ? 'block' : 'none';
-  if(!mostrar){ input.value = ''; }
-}
 function enviar(){
   var nome = document.getElementById('nome').value.trim();
   if(!nome){ showToast('Preencha seu nome completo.'); return; }
   var telefone = document.getElementById('telefone').value.trim();
   if(!telefone){ showToast('Preencha seu WhatsApp.'); return; }
-  var bairro = document.getElementById('bairro').value.trim();
-  if(!bairro){ showToast('Preencha seu bairro.'); return; }
-  var idade = document.getElementById('idade').value.trim();
-  if(!idade){ showToast('Preencha sua idade.'); return; }
-  var estadoCivil = document.getElementById('estadoCivil').value;
-  if(!estadoCivil){ showToast('Selecione seu estado civil.'); return; }
-  var nomeConjuge = document.getElementById('nomeConjuge').value.trim();
-  if(estadoCivil === 'Casado(a)' && !nomeConjuge){ showToast('Digite o nome do cônjuge.'); return; }
+  var fazParteIgreja = document.getElementById('fazParteIgreja').value;
+  if(!fazParteIgreja){ showToast('Responda se faz parte de alguma igreja.'); return; }
   Store.addPerson({
     nome: nome,
     telefone: telefone,
-    email: document.getElementById('email').value.trim(),
-    bairro: bairro,
-    idade: idade,
-    estadoCivil: estadoCivil,
-    nomeConjuge: nomeConjuge,
-    pedidoOracao: document.getElementById('pedidoOracao').value.trim(),
+    fazParteIgreja: fazParteIgreja,
+    notas: 'Faz parte de alguma igreja? ' + fazParteIgreja,
     quemColeta: 'Autocadastro (QR code)',
     stage: 'visitante'
   });
   document.getElementById('formScreen').style.display = 'none';
   document.getElementById('successScreen').style.display = 'block';
-  document.getElementById('welcomeVideo').src = 'https://www.youtube.com/embed/OsXFys3S_c0?autoplay=1&rel=0';
+  document.getElementById('successScreen').classList.add('is-visible');
+}
+function cadastrarOutro(){
+  document.getElementById('nome').value = '';
+  document.getElementById('telefone').value = '';
+  document.getElementById('fazParteIgreja').value = '';
+  document.getElementById('successScreen').classList.remove('is-visible');
+  document.getElementById('successScreen').style.display = 'none';
+  document.getElementById('formScreen').style.display = 'block';
+  document.getElementById('nome').focus();
 }
 </script>
 </body>
