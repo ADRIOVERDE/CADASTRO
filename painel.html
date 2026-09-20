@@ -11,6 +11,15 @@
 <style>
   body{margin:0;}
   @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  .password-lock{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at top,#113d72 0%,#0a2347 30%,#071835 100%);z-index:99999;}
+  .password-lock.hidden{display:none;}
+  .password-card{width:min(92vw,380px);padding:28px 24px;border-radius:24px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(10px);box-shadow:0 24px 60px rgba(4,18,35,.42);text-align:center;color:#fff;}
+  .password-logo{width:58px;height:58px;border-radius:18px;background:#fff;padding:8px;box-shadow:0 14px 28px rgba(0,0,0,.18);margin-bottom:14px;}
+  .password-card h2{margin:0 0 10px;font-size:28px;font-family:'Sora',sans-serif;letter-spacing:-.03em;}
+  .password-card p{margin:0 0 16px;color:#dceeff;font-size:14px;line-height:1.5;}
+  .password-card input{width:100%;height:48px;padding:0 14px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.92);color:#102844;font-size:15px;box-sizing:border-box;}
+  .password-card .btn-primary{margin-top:14px;}
+  .password-message{min-height:20px;margin-top:12px;font-size:12px;color:#ffd3d3;font-weight:700;}
   .loading-overlay{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;z-index:9999;}
   .loading-overlay .spin{animation:spin .9s linear infinite;display:inline-block;}
 
@@ -206,6 +215,16 @@
 </style>
 </head>
 <body>
+<div class="password-lock" id="passwordLock" role="dialog" aria-modal="true" aria-labelledby="passwordTitle">
+  <div class="password-card">
+    <img src="assets/logo-mark.png" alt="Logo AD Rio Verde" class="password-logo">
+    <h2 id="passwordTitle">Acesso restrito</h2>
+    <p>Digite a senha para entrar no painel.</p>
+    <input id="painelPasswordInput" type="password" placeholder="Senha" autocomplete="off">
+    <button class="btn-primary block" id="painelPasswordBtn" type="button"><i class="ti ti-lock"></i>Entrar</button>
+    <p id="passwordMessage" class="password-message" aria-live="polite"></p>
+  </div>
+</div>
 <div class="loading-overlay" id="loadingOverlay">
   <div style="text-align:center;">
     <i class="ti ti-loader spin" style="font-size:32px;color:#1279E6;"></i>
@@ -405,6 +424,52 @@
 <script src="store.js"></script>
 <script>
 var currentStage=null,currentPersonId=null,pendingRoutePersonId=null,newPersonStage=null,statPeriod=7;
+
+function getDailyPanelPassword(){
+  var now=new Date();
+  var day=String(now.getDate()).padStart(2,'0');
+  var month=String(now.getMonth()+1).padStart(2,'0');
+  var year=String(now.getFullYear());
+  return 'AdRioVerde' + day + month + year;
+}
+
+var PANEL_PASSWORD=getDailyPanelPassword();
+
+function checkPanelPassword(){
+  var input=document.getElementById('painelPasswordInput');
+  var lock=document.getElementById('passwordLock');
+  var message=document.getElementById('passwordMessage');
+  var typed=(input ? input.value.trim() : '');
+  if(typed === PANEL_PASSWORD){
+    sessionStorage.setItem('adrioverde_panel_authorized', 'true');
+    if(lock) lock.classList.add('hidden');
+    if(message) message.textContent='';
+    return true;
+  }
+  if(sessionStorage.getItem('adrioverde_panel_authorized') === 'true'){
+    if(lock) lock.classList.add('hidden');
+    return true;
+  }
+  if(lock) lock.classList.remove('hidden');
+  if(message) message.textContent='Senha incorreta. Tente novamente.';
+  return false;
+}
+
+function initPanelPassword(){
+  var btn=document.getElementById('painelPasswordBtn');
+  var input=document.getElementById('painelPasswordInput');
+  if(btn){ btn.addEventListener('click', checkPanelPassword); }
+  if(input){
+    input.addEventListener('keydown', function(event){
+      if(event.key === 'Enter'){ checkPanelPassword(); }
+    });
+  }
+  if(sessionStorage.getItem('adrioverde_panel_authorized') === 'true'){
+    document.getElementById('passwordLock').classList.add('hidden');
+  }
+}
+
+initPanelPassword();
 
 var base=document.location.origin+document.location.pathname.replace('painel.html','');
 document.getElementById('teamLink').textContent=base+'cadastro.html';
