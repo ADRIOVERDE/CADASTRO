@@ -7,7 +7,7 @@
 // Escritas disparam para o Supabase em segundo plano (async).
 
 // --- Supabase ---
-var SUPABASE_URL = 'https://kyxxlkqfzrrcikcajyjt.supabase.co/rest/v1/';
+var SUPABASE_URL = 'https://kyxxlkqfzrrcikcajyjt.supabase.co/rest/v1';
 var SUPABASE_KEY = 'sb_publishable_t3pBGGgcuGtAaKkNinOESw_wzC6Ruuq';
 
 // --- inChurch API via proxy (evita CORS no navegador) ---
@@ -81,6 +81,30 @@ function prevSubStageId(subStageId){
   return SUB_ORDER[i-1];
 }
 
+function inChurchMaritalStatus(value){
+  if(!value) return null;
+  var normalized = String(value).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  var statusMap = {
+    'solteiro(a)': 'single',
+    'solteiro': 'single',
+    'solteira': 'single',
+    'noivo(a)': 'engaged',
+    'noivo': 'engaged',
+    'noiva': 'engaged',
+    'casado(a)': 'married',
+    'casado': 'married',
+    'casada': 'married',
+    'divorciado(a)': 'divorced',
+    'divorciado': 'divorced',
+    'divorciada': 'divorced',
+    'viuvo(a)': 'widower',
+    'viuvo': 'widower',
+    'viuva': 'widower',
+    'uniao estavel': 'stable_union'
+  };
+  return statusMap[normalized] || null;
+}
+
 // --- Helper: chamada Supabase REST ---
 async function supabaseRequest(method, table, body, query){
   var url = SUPABASE_URL + '/' + table;
@@ -120,7 +144,7 @@ async function inchurchRequest(method, path, body){
     var json = null;
     try{ json = text ? JSON.parse(text) : null; }catch(e){ /* resposta não era JSON */ }
     if(!res.ok){
-      console.error('[inChurch]', method, path, res.status, text);
+      console.error('[inChurch]', method, path, res.status);
       return { ok:false, status:res.status, error:text, data:json };
     }
     return { ok:true, status:res.status, data:json };
@@ -253,8 +277,10 @@ const Store = {
       subHistory: [],
     };
     _peopleCache.push(p);
-    supabaseRequest('POST', 'pessoas', toDb(p));
-    if(stage !== 'visitante'){ this.syncPreCadastro(p); }
+    var self = this;
+    supabaseRequest('POST', 'pessoas', toDb(p)).then(function(){
+      self.syncPreCadastro(p);
+    });
     return p;
   },
 
@@ -325,7 +351,7 @@ const Store = {
   },
 
   async syncPreCadastro(person){
-    console.log('[inChurch] Iniciando pré-cadastro para:', person.nome);
+    console.log('[inChurch] Iniciando pré-cadastro.');
 
     // status aceita apenas: pending | approved | refused
     // church_profile aceita apenas: visitor | frequent | member
@@ -355,15 +381,9 @@ const Store = {
       first_visit_date: new Date().toISOString().split('T')[0]
     };
 
-    if(person.estadoCivil){ body.marital_status = person.estadoCivil; }
+    var maritalStatus = inChurchMaritalStatus(person.estadoCivil);
+    if(maritalStatus){ body.marital_status = maritalStatus; }
     if(person.igrejaAnterior){ body.previous_church = person.igrejaAnterior; }
-
-    // Junta carta de transferência + função ministerial num único campo de texto livre,
-    // já que a API não tem um campo específico para cada um.
-    var joiningReasonParts = [];
-    if(person.temCarta){ joiningReasonParts.push('Carta de transferência: ' + person.temCarta); }
-    if(person.funcaoMinisterial){ joiningReasonParts.push('Função ministerial anterior: ' + person.funcaoMinisterial); }
-    if(joiningReasonParts.length){ body.joining_reason = joiningReasonParts.join(' | '); }
 
     // Bairro vai dentro do objeto location (endereço)
     if(person.bairro){
@@ -371,7 +391,6 @@ const Store = {
       body.location = { neighborhood: person.bairro };
     }
 
-    console.log('[inChurch] Body:', JSON.stringify(body));
     var result = await inchurchRequest('POST', '/v1/people/', body);
 
     if(!result.ok){
@@ -380,7 +399,7 @@ const Store = {
     }
 
     var inchurchId = result.data && result.data.id;
-    console.log('[inChurch] Sucesso! ID:', inchurchId);
+    console.log('[inChurch] Pré-cadastro sincronizado.');
     this.updatePerson(person.id, { pendingSync: false, inchurchId: inchurchId || null, syncError: '' });
 
     // Vincula ao Departamento, se informado e o ID do grupo estiver configurado
@@ -395,7 +414,7 @@ const Store = {
       this.updatePerson(person.id, { pendingSyncMembro: true, syncError: 'Sem inchurchId' });
       return;
     }
-    console.log('[inChurch] Marcando como membro:', person.nome, '(ID:', person.inchurchId, ')');
+    console.log('[inChurch] Atualizando perfil para membro.');
 
     var churchId = Number(person.congregacao) || CONGREGACAO_CHURCH_ID[person.congregacao] || INCHURCH_CHURCH_ID;
 
@@ -408,8 +427,8 @@ const Store = {
       is_active: true,
       church_id: churchId
     };
-    if(person.estadoCivil){ body.marital_status = person.estadoCivil; }
-
+    var maritalStatus = inChurchMaritalStatus(person.estadoCivil);
+    if(maritalStatus){ body.marital_status = maritalStatus; }
     var result = await inchurchRequest('PATCH', '/v1/people/' + person.inchurchId + '/', body);
 
     if(!result.ok){
