@@ -30,6 +30,10 @@
     box-shadow:0 10px 24px rgba(30,158,107,.14);
   }
   .success .ic svg{width:38px;height:38px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+  .success.has-sync-warning .ic{background:#fff0ed;color:#c0392b;box-shadow:0 10px 24px rgba(192,57,43,.12);}
+  .success.has-sync-warning .ic svg path{stroke-dasharray:none;stroke-dashoffset:0;animation:none;}
+  .sync-warning{margin:0 0 22px;padding:15px 16px;border:1px solid #f2b8ae;border-radius:14px;background:#fff6f4;color:#7d241b;text-align:left;font-size:13px;line-height:1.55;font-weight:600;}
+  .sync-warning[hidden]{display:none;}
   .success.is-visible .ic{animation:confirmation-pop .65s cubic-bezier(.2,.9,.3,1.25) both;}
   .success.is-visible .ic svg path{stroke-dasharray:24;stroke-dashoffset:24;animation:confirmation-check .45s .35s ease-out forwards;}
   .success.is-visible h2,.success.is-visible p{animation:confirmation-rise .5s .18s ease-out both;}
@@ -61,15 +65,16 @@
         <option value="Sim">Sim</option>
         <option value="Não">Não</option>
       </select>
-      <button class="btn-ember block" style="margin-top:22px" onclick="enviar()">
+      <button class="btn-ember block" id="submitVisitanteBtn" style="margin-top:22px" onclick="enviar()">
         <i class="ti ti-send"></i>Enviar
       </button>
     </div>
   </div>
   <div class="success" id="successScreen">
     <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg></div>
-    <h2>Recebemos seus dados!</h2>
-    <p>Foi muito bom ter você com a gente. Em breve alguém da nossa equipe vai te procurar.</p>
+    <h2 id="resultTitle">Recebemos seus dados!</h2>
+    <p id="resultDescription">Foi muito bom ter você com a gente. Em breve alguém da nossa equipe vai te procurar.</p>
+    <div class="sync-warning" id="syncWarning" role="alert" hidden></div>
     <button class="btn-outline block new-registration" type="button" onclick="cadastrarOutro()">
       <i class="ti ti-user-plus"></i>Cadastrar outro
     </button>
@@ -83,24 +88,71 @@ function showToast(msg){
   t.textContent = msg; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
-function enviar(){
+function showSyncOutcome(outcome){
+  var sync=outcome&&outcome.sync?outcome.sync:{ok:false,created:false};
+  var saved=!!(outcome&&outcome.saved);
+  var okay=saved&&sync.ok;
+  var screen=document.getElementById('successScreen');
+  var title=document.getElementById('resultTitle');
+  var description=document.getElementById('resultDescription');
+  var warning=document.getElementById('syncWarning');
+  var icon=screen.querySelector('.ic');
+  screen.classList.toggle('has-sync-warning',!okay);
+  warning.hidden=okay;
+  if(okay){
+    title.textContent='Recebemos seus dados!';
+    description.textContent='Foi muito bom ter você com a gente. Em breve alguém da nossa equipe vai te procurar.';
+    icon.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
+    return;
+  }
+  title.textContent='Atenção: cadastro pendente';
+  icon.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.8 19a1.4 1.4 0 0 0 1.2 2h16a1.4 1.4 0 0 0 1.2-2L12 3z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>';
+  if(!saved&&sync.ok){
+    description.textContent='O envio foi concluído, mas houve uma falha ao salvar no sistema da recepção.';
+    warning.textContent='Entre em contato com a direção para conferir os sistemas. Não faça outro cadastro da mesma pessoa, para evitar duplicidade.';
+  }else if(!saved){
+    description.textContent='Não foi possível confirmar o salvamento e o envio do cadastro.';
+    warning.textContent='Entre em contato com a direção antes de tentar novamente. A equipe precisa conferir o registro para evitar perda ou duplicidade.';
+  }else if(sync.created&&sync.issue==='department'){
+    description.textContent='Seus dados foram enviados, mas houve uma falha adicional.';
+    warning.textContent='Não foi possível concluir o vínculo do departamento no inChurch. A direção vai verificar o cadastro.';
+  }else{
+    description.textContent='Seus dados foram recebidos pela equipe, mas o envio ao inChurch falhou.';
+    warning.textContent='Por favor, entre em contato com a direção para que o cadastro seja verificado e sincronizado. Não preencha novamente.';
+  }
+}
+
+async function enviar(){
   var nome = document.getElementById('nome').value.trim();
   if(!nome){ showToast('Preencha seu nome completo.'); return; }
   var telefone = document.getElementById('telefone').value.trim();
   if(!telefone){ showToast('Preencha seu WhatsApp.'); return; }
   var fazParteIgreja = document.getElementById('fazParteIgreja').value;
   if(!fazParteIgreja){ showToast('Responda se faz parte de alguma igreja.'); return; }
-  Store.addPerson({
+  var submitButton=document.getElementById('submitVisitanteBtn');
+  submitButton.disabled=true;
+  submitButton.setAttribute('aria-busy','true');
+  submitButton.innerHTML='<i class="ti ti-loader"></i>Enviando...';
+  var outcome;
+  try{
+    outcome=await Store.addPerson({
     nome: nome,
     telefone: telefone,
     fazParteIgreja: fazParteIgreja,
     notas: 'Faz parte de alguma igreja? ' + fazParteIgreja,
     quemColeta: 'Autocadastro (QR code)',
-    stage: 'visitante'
-  });
+      stage: 'visitante'
+    });
+  }catch(error){
+    outcome={saved:false,sync:{ok:false,created:false}};
+  }
+  showSyncOutcome(outcome);
   document.getElementById('formScreen').style.display = 'none';
   document.getElementById('successScreen').style.display = 'block';
   document.getElementById('successScreen').classList.add('is-visible');
+  submitButton.disabled=false;
+  submitButton.removeAttribute('aria-busy');
+  submitButton.innerHTML='<i class="ti ti-send"></i>Enviar';
 }
 function cadastrarOutro(){
   document.getElementById('nome').value = '';

@@ -1085,10 +1085,10 @@ function openNewPersonFromStage(){
   openModal('newPersonModal');
 }
 
-function addPersonQuick(){
+async function addPersonQuick(){
   var nome=document.getElementById('npNome').value.trim();
   if(!nome){showToast('Preencha o nome.');return;}
-  Store.addPerson({
+  var outcome=await Store.addPerson({
     nome:nome,
     telefone:document.getElementById('npTel').value.trim(),
     email:document.getElementById('npEmail').value.trim(),
@@ -1098,7 +1098,16 @@ function addPersonQuick(){
   closeModal('newPersonModal');
   renderAll();
   if(currentStage)renderStageList(currentStage);
-  showToast('Pessoa adicionada!');
+  var sync=outcome&&outcome.sync?outcome.sync:{ok:false,created:false};
+  if(outcome&&outcome.saved&&sync.ok){
+    showToast('Pessoa adicionada e enviada ao inChurch.');
+  }else if(outcome&&outcome.saved&&sync.created&&sync.issue==='department'){
+    alert('O cadastro foi enviado ao inChurch, mas o vínculo do departamento falhou. Entre em contato com a direção para concluir o ajuste.');
+  }else if(outcome&&outcome.saved){
+    alert('O cadastro foi salvo no sistema da recepção, mas não foi enviado ao inChurch. Entre em contato com a direção para sincronizar. Não cadastre a mesma pessoa novamente.');
+  }else{
+    alert('Não foi possível confirmar o salvamento e o envio ao inChurch. Entre em contato com a direção antes de tentar novamente, para evitar perda ou duplicidade.');
+  }
 }
 
 function openApiConfig(){

@@ -242,7 +242,7 @@ const Store = {
     return _peopleCache;
   },
 
-  addPerson(data){
+  async addPerson(data){
     var stage = data.stage || 'visitante';
     var p = {
       id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -277,11 +277,16 @@ const Store = {
       subHistory: [],
     };
     _peopleCache.push(p);
-    var self = this;
-    supabaseRequest('POST', 'pessoas', toDb(p)).then(function(){
-      self.syncPreCadastro(p);
-    });
-    return p;
+    var saved = await supabaseRequest('POST', 'pessoas', toDb(p));
+    var syncResult;
+    try{
+      syncResult = await this.syncPreCadastro(p);
+    }catch(error){
+      var syncError = error && error.message ? error.message : String(error || 'Erro desconhecido');
+      this.updatePerson(p.id, { pendingSync:true, syncError:syncError });
+      syncResult = { ok:false, created:false, error:syncError };
+    }
+    return { person:p, saved:saved === true, sync:syncResult };
   },
 
   updatePerson(id, data){
@@ -368,7 +373,7 @@ const Store = {
       'novo_membro': 'approved'
     };
 
-    var churchId = Number(person.congregacao) || CONGREGACAO_CHURCH_ID[person.congregacao] || INCHURCH_CHURCH_ID;
+    var churchId = INCHURCH_CHURCH_ID;
 
     var body = {
       full_name: person.nome,
@@ -385,28 +390,34 @@ const Store = {
     if(maritalStatus){ body.marital_status = maritalStatus; }
     if(person.igrejaAnterior){ body.previous_church = person.igrejaAnterior; }
 
-    // Bairro vai dentro do objeto location (endereço)
-    if(person.bairro){
-      body.location_type = 'national';
-      body.location = { neighborhood: person.bairro };
-    }
-
     var result = await inchurchRequest('POST', '/v1/people/', body);
 
     if(!result.ok){
-      this.updatePerson(person.id, { pendingSync: true, syncError: result.error || 'Erro desconhecido' });
-      return;
+      var syncError = result.error || 'Erro desconhecido';
+      this.updatePerson(person.id, { pendingSync: true, syncError: syncError });
+      return { ok:false, created:false, error:syncError };
     }
 
     var inchurchId = result.data && result.data.id;
+    if(!inchurchId){
+      var missingIdError = 'A API não retornou o identificador do cadastro.';
+      this.updatePerson(person.id, { pendingSync:true, syncError:missingIdError });
+      return { ok:false, created:false, error:missingIdError };
+    }
     console.log('[inChurch] Pré-cadastro sincronizado.');
-    this.updatePerson(person.id, { pendingSync: false, inchurchId: inchurchId || null, syncError: '' });
+    this.updatePerson(person.id, { pendingSync: false, inchurchId: inchurchId, syncError: '' });
 
     // Vincula ao Departamento, se informado e o ID do grupo estiver configurado
     // (isso usa Group Segmentation, que é diferente de Células — ver OBS acima)
     if(inchurchId && person.departamento && DEPARTAMENTO_GROUP_ID[person.departamento]){
-      await inchurchRequest('POST', '/v1/group/' + DEPARTAMENTO_GROUP_ID[person.departamento] + '/memberships/', { person: inchurchId });
+      var groupResult = await inchurchRequest('POST', '/v1/group/' + DEPARTAMENTO_GROUP_ID[person.departamento] + '/memberships/', { person: inchurchId });
+      if(!groupResult.ok){
+        var groupError = groupResult.error || 'Falha ao vincular o departamento no inChurch.';
+        this.updatePerson(person.id, { syncError:groupError });
+        return { ok:false, created:true, issue:'department', error:groupError };
+      }
     }
+    return { ok:true, created:true, id:inchurchId };
   },
 
   async syncMembroFinal(person){
@@ -416,7 +427,7 @@ const Store = {
     }
     console.log('[inChurch] Atualizando perfil para membro.');
 
-    var churchId = Number(person.congregacao) || CONGREGACAO_CHURCH_ID[person.congregacao] || INCHURCH_CHURCH_ID;
+    var churchId = INCHURCH_CHURCH_ID;
 
     // status só aceita pending | approved | refused — "active" não existe no schema oficial.
     var body = {
