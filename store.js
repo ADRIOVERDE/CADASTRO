@@ -105,6 +105,80 @@ function inChurchMaritalStatus(value){
   return statusMap[normalized] || null;
 }
 
+function digitsOnly(value){
+  return String(value || '').replace(/\D/g, '');
+}
+
+function brazilianPhoneDigits(value){
+  var digits = digitsOnly(value);
+  if((digits.length === 12 || digits.length === 13) && digits.slice(0, 2) === '55') digits = digits.slice(2);
+  return digits.slice(0, 11);
+}
+
+function formatBrazilianPhone(value){
+  var digits = brazilianPhoneDigits(value);
+  if(!digits) return '';
+  if(digits.length <= 2) return '(' + digits;
+  var area = digits.slice(0, 2);
+  var subscriber = digits.slice(2);
+  if(subscriber.length <= 4) return '(' + area + ') ' + subscriber;
+  if(digits.length <= 10) return '(' + area + ') ' + subscriber.slice(0, 4) + '-' + subscriber.slice(4);
+  return '(' + area + ') ' + subscriber.slice(0, 5) + '-' + subscriber.slice(5);
+}
+
+function isValidBrazilianPhone(value){
+  var digits = brazilianPhoneDigits(value);
+  var validAreaCodes = [11,12,13,14,15,16,17,18,19,21,22,24,27,28,31,32,33,34,35,37,38,41,42,43,44,45,46,47,48,49,51,53,54,55,61,62,63,64,65,66,67,68,69,71,73,74,75,77,79,81,82,83,84,85,86,87,88,89,91,92,93,94,95,96,97,98,99];
+  return (digits.length === 10 || digits.length === 11) && validAreaCodes.indexOf(Number(digits.slice(0, 2))) !== -1;
+}
+
+function isValidEmail(value){
+  var email = String(value || '').trim();
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
+function isValidBirthDate(value){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false;
+  var parts = value.split('-').map(Number);
+  var date = new Date(parts[0], parts[1] - 1, parts[2]);
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date.getFullYear() === parts[0] && date.getMonth() === parts[1] - 1 &&
+    date.getDate() === parts[2] && parts[0] >= 1900 && date <= today;
+}
+
+function inChurchErrorMessage(status, data){
+  if(status === 0) return 'Não foi possível conectar ao inChurch. Confira a internet e tente novamente.';
+  if(status === 401 || status === 403) return 'A API recusou o acesso. A direção precisa verificar as credenciais e permissões do inChurch.';
+  if(status === 404) return 'O recurso solicitado não foi encontrado no inChurch. Avise a direção.';
+  if(status === 429) return 'A API recebeu muitas tentativas. Aguarde alguns minutos e avise a direção para sincronizar.';
+  if(status >= 500) return 'O serviço do inChurch está temporariamente indisponível. Tente mais tarde ou avise a direção.';
+
+  var error = data && data.error ? data.error : data;
+  var details = error && error.details;
+  if(error && error.code === 'VALIDATION_ERROR' && details && typeof details === 'object'){
+    var labels = {
+      full_name:'nome completo', email:'e-mail', mobile_phone:'WhatsApp', phone:'telefone',
+      church_id:'igreja', birthday:'data de nascimento', marital_status:'estado civil',
+      status:'situação', church_profile:'perfil na igreja', previous_church:'igreja anterior',
+      location:'endereço', postal_code:'CEP', street_address:'rua', street_number:'número',
+      city:'cidade', state:'estado', country:'país', joining_reason:'motivo do ingresso'
+    };
+    var problems = Object.keys(details).map(function(field){
+      var items = Array.isArray(details[field]) ? details[field] : [details[field]];
+      var message = items.map(function(item){ return String(item || '').toLowerCase(); }).join(' ');
+      var reason = /required|obrigat/.test(message) ? 'obrigatório' :
+        /valid|not a valid|invalid|válid|choice/.test(message) ? 'valor ou opção inválida' :
+        /max_length|too long|maximum|no more than/.test(message) ? 'ultrapassa o limite permitido' :
+        /min_length|too short|at least/.test(message) ? 'está incompleto' :
+        /email/.test(message) ? 'formato inválido' : 'precisa ser revisado';
+      return (labels[field] || 'campo ' + field.replace(/_/g, ' ')) + ': ' + reason;
+    });
+    return problems.length ? 'O inChurch recusou o cadastro. Verifique: ' + problems.join('; ') + '.' : 'O inChurch recusou os dados do cadastro. Revise os campos e avise a direção.';
+  }
+  return 'O inChurch recusou o cadastro (HTTP ' + status + '). Avise a direção para verificar os dados e a resposta da API.';
+}
+
 // --- Helper: chamada Supabase REST ---
 async function supabaseRequest(method, table, body, query){
   var url = SUPABASE_URL + '/' + table;
@@ -145,12 +219,12 @@ async function inchurchRequest(method, path, body){
     try{ json = text ? JSON.parse(text) : null; }catch(e){ /* resposta não era JSON */ }
     if(!res.ok){
       console.error('[inChurch]', method, path, res.status);
-      return { ok:false, status:res.status, error:text, data:json };
+      return { ok:false, status:res.status, error:inChurchErrorMessage(res.status, json), data:json };
     }
     return { ok:true, status:res.status, data:json };
   }catch(err){
     console.error('[inChurch] falha de rede:', method, path, err);
-    return { ok:false, status:0, error:String(err), data:null };
+    return { ok:false, status:0, error:inChurchErrorMessage(0, null), data:null };
   }
 }
 
@@ -164,6 +238,7 @@ function toDb(p){
     email: p.email || '',
     bairro: p.bairro || '',
     idade: p.idade || '',
+    data_nascimento: p.dataNascimento || null,
     estado_civil: p.estadoCivil || '',
     nome_conjuge: p.nomeConjuge || '',
     igreja_anterior: p.igrejaAnterior || '',
@@ -199,6 +274,7 @@ function fromDb(row){
     email: row.email || '',
     bairro: row.bairro || '',
     idade: String(row.idade || ''),
+    dataNascimento: row.data_nascimento || '',
     estadoCivil: row.estado_civil || '',
     nomeConjuge: row.nome_conjuge || '',
     igrejaAnterior: row.igreja_anterior || '',
@@ -252,6 +328,7 @@ const Store = {
       email: data.email || '',
       bairro: data.bairro || '',
       idade: data.idade || '',
+      dataNascimento: data.dataNascimento || '',
       estadoCivil: data.estadoCivil || '',
       nomeConjuge: data.nomeConjuge || '',
       igrejaAnterior: data.igrejaAnterior || '',
@@ -295,6 +372,27 @@ const Store = {
     Object.assign(p, data);
     supabaseRequest('PATCH', 'pessoas', toDb(p), 'id=eq.' + id);
     return p;
+  },
+
+  async updatePersonAndRetrySync(id, updates){
+    var person = _peopleCache.find(function(item){ return item.id === id; });
+    if(!person) return { saved:false, sync:{ok:false, error:'Cadastro não encontrado no painel.'} };
+    if(person.inchurchId) return { saved:false, sync:{ok:false, created:true, error:'Este cadastro já tem um ID no inChurch. Não será criado novamente.'} };
+    Object.assign(person, updates, { pendingSync:true, syncError:'Salvando correções…' });
+    var saved = await supabaseRequest('PATCH', 'pessoas', toDb(person), 'id=eq.' + id);
+    if(!saved){
+      var saveError = 'Não foi possível salvar as correções no sistema. Nenhum novo envio ao inChurch foi feito.';
+      Object.assign(person, { pendingSync:true, syncError:saveError });
+      return { saved:false, sync:{ok:false, error:saveError} };
+    }
+    try{
+      var sync = await this.syncPreCadastro(person);
+      return { saved:true, sync:sync };
+    }catch(error){
+      var syncError = error && error.message ? error.message : 'Falha inesperada ao sincronizar.';
+      this.updatePerson(person.id, { pendingSync:true, syncError:syncError });
+      return { saved:true, sync:{ok:false, created:false, error:syncError} };
+    }
   },
 
   movePerson(id, newStageId){
@@ -386,6 +484,7 @@ const Store = {
       first_visit_date: new Date().toISOString().split('T')[0]
     };
 
+    if(person.dataNascimento){ body.birthday = person.dataNascimento; }
     var maritalStatus = inChurchMaritalStatus(person.estadoCivil);
     if(maritalStatus){ body.marital_status = maritalStatus; }
     if(person.igrejaAnterior){ body.previous_church = person.igrejaAnterior; }

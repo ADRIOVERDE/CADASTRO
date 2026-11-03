@@ -56,15 +56,21 @@
     </div>
     <div class="form-area">
       <label>Seu nome completo *</label>
-      <input type="text" id="nome" placeholder="Como você se chama?">
+      <input type="text" id="nome" placeholder="Como você se chama?" autocomplete="name" maxlength="120" required>
       <label>WhatsApp *</label>
-      <input type="tel" id="telefone" placeholder="(62) 9 0000-0000">
+      <input type="tel" id="telefone" placeholder="(62) 9 0000-0000" inputmode="tel" autocomplete="tel" maxlength="15" required>
       <label>Faz parte de alguma igreja? *</label>
-      <select id="fazParteIgreja">
+      <select id="fazParteIgreja" required>
         <option value="">Selecione</option>
         <option value="Sim">Sim</option>
         <option value="Não">Não</option>
       </select>
+      <div id="wrapIgrejaVisitante" style="display:none">
+        <label for="igrejaVisitante">Qual igreja? *</label>
+        <input type="text" id="igrejaVisitante" placeholder="Nome da igreja" maxlength="200">
+      </div>
+      <label for="dataNascimento">Data de nascimento *</label>
+      <input type="date" id="dataNascimento" min="1900-01-01" required>
       <button class="btn-ember block" id="submitVisitanteBtn" style="margin-top:22px" onclick="enviar()">
         <i class="ti ti-send"></i>Enviar
       </button>
@@ -88,6 +94,18 @@ function showToast(msg){
   t.textContent = msg; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
+document.getElementById('telefone').addEventListener('input',function(){
+  this.value=formatBrazilianPhone(this.value);
+  this.setSelectionRange(this.value.length,this.value.length);
+});
+var birthDateInput=document.getElementById('dataNascimento');
+var localToday=new Date();
+birthDateInput.max=[localToday.getFullYear(),String(localToday.getMonth()+1).padStart(2,'0'),String(localToday.getDate()).padStart(2,'0')].join('-');
+document.getElementById('fazParteIgreja').addEventListener('change',function(){
+  var mostrar=this.value==='Sim';
+  document.getElementById('wrapIgrejaVisitante').style.display=mostrar?'block':'none';
+  if(!mostrar)document.getElementById('igrejaVisitante').value='';
+});
 function showSyncOutcome(outcome){
   var sync=outcome&&outcome.sync?outcome.sync:{ok:false,created:false};
   var saved=!!(outcome&&outcome.saved);
@@ -109,26 +127,32 @@ function showSyncOutcome(outcome){
   icon.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.8 19a1.4 1.4 0 0 0 1.2 2h16a1.4 1.4 0 0 0 1.2-2L12 3z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>';
   if(!saved&&sync.ok){
     description.textContent='O envio foi concluído, mas houve uma falha ao salvar no sistema da recepção.';
-    warning.textContent='Entre em contato com a direção para conferir os sistemas. Não faça outro cadastro da mesma pessoa, para evitar duplicidade.';
+    warning.textContent='Entre em contato com a direção para conferir os sistemas. Não faça outro cadastro da mesma pessoa, para evitar duplicidade.'+(sync.error?' Motivo: '+sync.error:'');
   }else if(!saved){
     description.textContent='Não foi possível confirmar o salvamento e o envio do cadastro.';
-    warning.textContent='Entre em contato com a direção antes de tentar novamente. A equipe precisa conferir o registro para evitar perda ou duplicidade.';
+    warning.textContent='Entre em contato com a direção antes de tentar novamente. A equipe precisa conferir o registro para evitar perda ou duplicidade.'+(sync.error?' Motivo: '+sync.error:'');
   }else if(sync.created&&sync.issue==='department'){
     description.textContent='Seus dados foram enviados, mas houve uma falha adicional.';
-    warning.textContent='Não foi possível concluir o vínculo do departamento no inChurch. A direção vai verificar o cadastro.';
+    warning.textContent='Não foi possível concluir o vínculo do departamento no inChurch. A direção vai verificar o cadastro.'+(sync.error?' Motivo: '+sync.error:'');
   }else{
     description.textContent='Seus dados foram recebidos pela equipe, mas o envio ao inChurch falhou.';
-    warning.textContent='Por favor, entre em contato com a direção para que o cadastro seja verificado e sincronizado. Não preencha novamente.';
+    warning.textContent='Por favor, entre em contato com a direção para que o cadastro seja verificado e sincronizado. Não preencha novamente.'+(sync.error?' Motivo: '+sync.error:'');
   }
 }
 
 async function enviar(){
   var nome = document.getElementById('nome').value.trim();
-  if(!nome){ showToast('Preencha seu nome completo.'); return; }
-  var telefone = document.getElementById('telefone').value.trim();
+  if(nome.length<2){ showToast('Preencha seu nome completo com pelo menos 2 caracteres.'); return; }
+  var telefone = formatBrazilianPhone(document.getElementById('telefone').value);
   if(!telefone){ showToast('Preencha seu WhatsApp.'); return; }
+  if(!isValidBrazilianPhone(telefone)){ showToast('Confira o WhatsApp: informe DDD e número com 10 ou 11 dígitos.'); return; }
   var fazParteIgreja = document.getElementById('fazParteIgreja').value;
   if(!fazParteIgreja){ showToast('Responda se faz parte de alguma igreja.'); return; }
+  var igrejaVisitante=document.getElementById('igrejaVisitante').value.trim();
+  if(fazParteIgreja==='Sim'&&!igrejaVisitante){ showToast('Informe o nome da igreja.'); return; }
+  var dataNascimento=document.getElementById('dataNascimento').value;
+  if(!dataNascimento){ showToast('Preencha sua data de nascimento.'); return; }
+  if(!isValidBirthDate(dataNascimento)){ showToast('Confira sua data de nascimento: ela deve ser válida e não futura.'); return; }
   var submitButton=document.getElementById('submitVisitanteBtn');
   submitButton.disabled=true;
   submitButton.setAttribute('aria-busy','true');
@@ -138,8 +162,10 @@ async function enviar(){
     outcome=await Store.addPerson({
     nome: nome,
     telefone: telefone,
+    dataNascimento: dataNascimento,
     fazParteIgreja: fazParteIgreja,
-    notas: 'Faz parte de alguma igreja? ' + fazParteIgreja,
+    igrejaAnterior: fazParteIgreja==='Sim'?igrejaVisitante:'',
+    notas: 'Faz parte de alguma igreja? ' + fazParteIgreja + (igrejaVisitante?'. Igreja: '+igrejaVisitante:''),
     quemColeta: 'Autocadastro (QR code)',
       stage: 'visitante'
     });
@@ -158,6 +184,9 @@ function cadastrarOutro(){
   document.getElementById('nome').value = '';
   document.getElementById('telefone').value = '';
   document.getElementById('fazParteIgreja').value = '';
+  document.getElementById('igrejaVisitante').value = '';
+  document.getElementById('wrapIgrejaVisitante').style.display='none';
+  document.getElementById('dataNascimento').value = '';
   document.getElementById('successScreen').classList.remove('is-visible');
   document.getElementById('successScreen').style.display = 'none';
   document.getElementById('formScreen').style.display = 'block';

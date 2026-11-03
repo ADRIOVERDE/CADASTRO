@@ -53,13 +53,13 @@
       <div class="form-intro"><i class="ti ti-heart-handshake"></i><span>Seu cuidado começa com um cadastro bem feito.</span></div>
       <div class="form-section">Dados da pessoa</div>
       <label>Nome completo *</label>
-      <input type="text" id="nome" placeholder="Nome completo, sem abreviar">
+      <input type="text" id="nome" placeholder="Nome completo, sem abreviar" autocomplete="name" maxlength="120" required>
       <label>WhatsApp *</label>
-      <input type="tel" id="telefone" placeholder="(62) 9 0000-0000">
+      <input type="tel" id="telefone" placeholder="(62) 9 0000-0000" inputmode="tel" autocomplete="tel" maxlength="15" required>
       <label>E-mail (para o cadastro na plataforma) *</label>
-      <input type="email" id="email" placeholder="nome@email.com">
-      <label>Igreja que a pessoa frequenta *</label>
-      <select id="congregacao">
+      <input type="email" id="email" placeholder="nome@email.com" autocomplete="email" maxlength="254" autocapitalize="none" required>
+      <label>Igreja que está realizando o cadastro *</label>
+      <select id="congregacao" required>
         <option value="">Selecione a igreja</option>
         <option value="36034">AD | Amorinópolis</option>
         <option value="36026">AD | Aragarças</option>
@@ -108,7 +108,6 @@
       <label>Situação *</label>
       <div class="form-section">Situação e acompanhamento</div>
       <div class="seg" id="categoriaSeg">
-        <button type="button" data-v="visitante" onclick="setCategoria(this)">Visitante</button>
         <button type="button" data-v="convertido" onclick="setCategoria(this)">Aceitou Jesus agora</button>
         <button type="button" data-v="reconciliado" onclick="setCategoria(this)">Reconciliação</button>
         <button type="button" data-v="novo_membro" onclick="setCategoria(this)">Veio de outra igreja</button>
@@ -117,11 +116,11 @@
         <div class="field-row-2">
           <div>
             <label>Bairro *</label>
-            <input type="text" id="bairro" placeholder="Qual bairro">
+            <input type="text" id="bairro" placeholder="Qual bairro" maxlength="100" autocomplete="address-level3">
           </div>
           <div>
-            <label>Idade *</label>
-            <input type="number" id="idade" placeholder="Anos" min="0">
+            <label>Data de nascimento *</label>
+            <input type="date" id="dataNascimento" min="1900-01-01" required>
           </div>
         </div>
         <label>Estado civil *</label>
@@ -153,14 +152,6 @@
           <input type="text" id="funcaoMinisterial" placeholder="Obreiro, diácono, pastor...">
         </div>
       </div>
-      <div id="wrapVisitante" style="display:none">
-        <label>Gostaria de participar de um Grupo de Crescimento? *</label>
-        <div class="seg" id="segGC">
-          <button type="button" data-v="Sim" onclick="setSeg('segGC','quisGC',this)">Sim</button>
-          <button type="button" data-v="Não" onclick="setSeg('segGC','quisGC',this)">Não</button>
-        </div>
-        <input type="hidden" id="quisGC">
-      </div>
       <label>Observação (opcional)</label>
       <textarea id="notas" rows="3" placeholder="Alguma informação extra que ache importante registrar..."></textarea>
       <label>Quem está coletando essas informações? *</label>
@@ -171,7 +162,7 @@
       </div>
       <input type="hidden" id="quemColeta">
       <label>Seu nome (quem está cadastrando) *</label>
-      <input type="text" id="nomeCadastrador" placeholder="Digite seu nome completo">
+      <input type="text" id="nomeCadastrador" placeholder="Digite seu nome completo" autocomplete="name" maxlength="120" required>
       <div id="wrapDepartamento" class="conditional" style="display:none">
         <label>Qual departamento? *</label>
         <select id="departamento">
@@ -210,6 +201,15 @@ function showToast(msg){
   t.textContent = msg; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
+document.getElementById('telefone').addEventListener('input',function(){
+  var position=this.selectionStart;
+  this.value=formatBrazilianPhone(this.value);
+  this.setSelectionRange(this.value.length,this.value.length);
+});
+document.getElementById('email').addEventListener('blur',function(){ this.value=this.value.trim().toLowerCase(); });
+var birthDateInput=document.getElementById('dataNascimento');
+var localToday=new Date();
+birthDateInput.max=[localToday.getFullYear(),String(localToday.getMonth()+1).padStart(2,'0'),String(localToday.getDate()).padStart(2,'0')].join('-');
 function toggleConjugeCampo(){
   var estadoCivil = document.getElementById('estadoCivil').value;
   var wrap = document.getElementById('wrapConjuge');
@@ -225,7 +225,6 @@ function setCategoria(btn){
   document.getElementById('wrapComum').style.display = 'block';
   document.getElementById('wrapReconciliado').style.display = categoriaAtual === 'reconciliado' ? 'block' : 'none';
   document.getElementById('wrapNovoMembro').style.display = categoriaAtual === 'novo_membro' ? 'block' : 'none';
-  document.getElementById('wrapVisitante').style.display = categoriaAtual === 'visitante' ? 'block' : 'none';
 }
 function setSeg(groupId, hiddenId, btn){
   document.querySelectorAll('#' + groupId + ' button').forEach(function(b){ b.classList.remove('active'); });
@@ -262,33 +261,36 @@ function showSyncOutcome(outcome){
   icon.className='ti ti-alert-triangle';
   if(!saved&&sync.ok){
     description.textContent='O envio foi concluído, mas houve uma falha ao salvar no sistema da recepção.';
-    warning.textContent='Entre em contato com a direção para conferir os sistemas. Não faça outro cadastro da mesma pessoa, para evitar duplicidade.';
+    warning.textContent='Entre em contato com a direção para conferir os sistemas. Não faça outro cadastro da mesma pessoa, para evitar duplicidade.'+(sync.error?' Motivo: '+sync.error:'');
   }else if(!saved){
     description.textContent='Não foi possível confirmar o salvamento e o envio do cadastro.';
-    warning.textContent='Entre em contato com a direção antes de tentar novamente. O cadastro pode não ter sido salvo; a equipe precisa conferir para evitar perda ou duplicidade.';
+    warning.textContent='Entre em contato com a direção antes de tentar novamente. O cadastro pode não ter sido salvo; a equipe precisa conferir para evitar perda ou duplicidade.'+(sync.error?' Motivo: '+sync.error:'');
   }else if(sync.created&&sync.issue==='department'){
     description.textContent='O cadastro foi enviado ao inChurch, mas houve uma falha adicional.';
-    warning.textContent='Não foi possível vincular a pessoa ao departamento no inChurch. Entre em contato com a direção para concluir o ajuste.';
+    warning.textContent='Não foi possível vincular a pessoa ao departamento no inChurch. Entre em contato com a direção para concluir o ajuste.'+(sync.error?' Motivo: '+sync.error:'');
   }else{
     description.textContent='Os dados foram salvos no sistema da recepção, mas não chegaram ao inChurch.';
-    warning.textContent='Entre em contato com a direção para verificar e sincronizar o cadastro. Não cadastre a mesma pessoa novamente.';
+    warning.textContent='Entre em contato com a direção para verificar e sincronizar o cadastro. Não cadastre a mesma pessoa novamente.'+(sync.error?' Motivo: '+sync.error:'');
   }
 }
 
 async function enviar(){
   var nome = document.getElementById('nome').value.trim();
-  if(!nome){ showToast('Preencha o nome completo.'); return; }
-  var telefone = document.getElementById('telefone').value.trim();
+  if(nome.length<2){ showToast('Preencha o nome completo com pelo menos 2 caracteres.'); return; }
+  var telefone = formatBrazilianPhone(document.getElementById('telefone').value);
   if(!telefone){ showToast('Preencha o WhatsApp.'); return; }
-  var email = document.getElementById('email').value.trim();
+  if(!isValidBrazilianPhone(telefone)){ showToast('Confira o WhatsApp: informe DDD e número com 10 ou 11 dígitos.'); return; }
+  var email = document.getElementById('email').value.trim().toLowerCase();
   if(!email){ showToast('Preencha o e-mail.'); return; }
+  if(!isValidEmail(email)){ showToast('Confira o e-mail e tente novamente.'); return; }
   var congregacao = document.getElementById('congregacao').value;
-  if(!congregacao){ showToast('Selecione a igreja que a pessoa frequenta.'); return; }
+  if(!congregacao){ showToast('Selecione a igreja que está realizando o cadastro.'); return; }
   if(!categoriaAtual){ showToast('Escolha a situação da pessoa.'); return; }
   var bairro = document.getElementById('bairro').value.trim();
-  if(!bairro){ showToast('Preencha o bairro.'); return; }
-  var idade = document.getElementById('idade').value.trim();
-  if(!idade){ showToast('Preencha a idade.'); return; }
+  if(bairro.length<2){ showToast('Preencha o bairro com pelo menos 2 caracteres.'); return; }
+  var dataNascimento = document.getElementById('dataNascimento').value;
+  if(!dataNascimento){ showToast('Preencha a data de nascimento.'); return; }
+  if(!isValidBirthDate(dataNascimento)){ showToast('Confira a data de nascimento: ela deve ser válida e não futura.'); return; }
   var estadoCivil = document.getElementById('estadoCivil').value;
   if(!estadoCivil){ showToast('Selecione o estado civil.'); return; }
   var nomeConjuge = document.getElementById('nomeConjuge').value.trim();
@@ -305,10 +307,6 @@ async function enviar(){
       if(!funcao){ showToast('Preencha a função ministerial.'); return; }
     }
   }
-  if(categoriaAtual === 'visitante'){
-    var quisGC = document.getElementById('quisGC').value;
-    if(!quisGC){ showToast('Selecione se gostaria de participar de um GC.'); return; }
-  }
   var quemColeta = document.getElementById('quemColeta').value;
   if(!quemColeta){ showToast('Selecione quem está coletando as informações.'); return; }
   if(quemColeta === 'Departamento'){
@@ -316,7 +314,7 @@ async function enviar(){
     if(!depto){ showToast('Selecione o departamento.'); return; }
   }
   var nomeCadastrador = document.getElementById('nomeCadastrador').value.trim();
-  if(!nomeCadastrador){ showToast('Digite o nome de quem está cadastrando.'); return; }
+  if(nomeCadastrador.length<2){ showToast('Digite o nome de quem está cadastrando.'); return; }
   var submitButton=document.getElementById('submitCadastroBtn');
   submitButton.disabled=true;
   submitButton.setAttribute('aria-busy','true');
@@ -329,13 +327,12 @@ async function enviar(){
     email: email,
     congregacao: congregacao,
     bairro: bairro,
-    idade: idade,
+    dataNascimento: dataNascimento,
     estadoCivil: estadoCivil,
     nomeConjuge: nomeConjuge,
     igrejaAnterior: document.getElementById('igrejaAnterior').value.trim(),
     temCarta: document.getElementById('temCarta').value,
     funcaoMinisterial: document.getElementById('funcaoMinisterial').value.trim(),
-    quisGC: document.getElementById('quisGC').value,
     notas: document.getElementById('notas').value.trim(),
     nomeCadastrador: nomeCadastrador,
     quemColeta: quemColeta,
@@ -353,18 +350,17 @@ async function enviar(){
   submitButton.innerHTML='<i class="ti ti-send"></i>Enviar cadastro';
 }
 function novoCadastro(){
-  var ids = ['nome','telefone','email','bairro','idade','igrejaAnterior','funcaoMinisterial','notas','nomeCadastrador'];
+  var ids = ['nome','telefone','email','bairro','dataNascimento','igrejaAnterior','funcaoMinisterial','notas','nomeCadastrador'];
   ids.forEach(function(id){ document.getElementById(id).value = ''; });
   document.getElementById('congregacao').value = '';
   document.getElementById('estadoCivil').value = '';
   document.getElementById('nomeConjuge').value = '';
   document.getElementById('temCarta').value = '';
-  document.getElementById('quisGC').value = '';
   document.getElementById('quemColeta').value = '';
   document.getElementById('departamento').value = '';
   categoriaAtual = null;
   document.querySelectorAll('.seg button').forEach(function(b){ b.classList.remove('active'); });
-  var wraps = ['wrapComum','wrapConjuge','wrapReconciliado','wrapNovoMembro','wrapVisitante','wrapFuncao','wrapDepartamento'];
+  var wraps = ['wrapComum','wrapConjuge','wrapReconciliado','wrapNovoMembro','wrapFuncao','wrapDepartamento'];
   wraps.forEach(function(id){ document.getElementById(id).style.display = 'none'; });
   document.getElementById('successScreen').style.display = 'none';
   document.getElementById('formScreen').style.display = 'block';

@@ -193,6 +193,13 @@
   .detail-section{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);}
   .detail-section h4{font-size:11.5px;font-weight:700;color:var(--muted);margin:0 0 10px;text-transform:uppercase;letter-spacing:.07em;}
   .api-status{text-align:center;padding:11px;border-radius:var(--r-sm);background:var(--green-100);color:var(--green-dark);font-size:12px;font-weight:700;margin-bottom:16px;}
+  .sync-error-message{margin:0 24px 12px;padding:12px 14px;border:1px solid #f2b8ae;border-radius:12px;background:#fff6f4;color:#7d241b;font-size:12px;line-height:1.5;overflow-wrap:anywhere;}
+  .sync-retry-panel{margin:14px 24px 20px;padding:18px;border:1px solid #d8e5f3;border-radius:16px;background:#f6faff;}
+  .sync-retry-panel h3{margin:0 0 6px;color:var(--page-ink);font-size:14px;}
+  .sync-retry-panel p{margin:0 0 12px;color:var(--muted);font-size:11.5px;line-height:1.5;}
+  .sync-retry-panel label{margin-top:10px;}
+  .sync-retry-panel input,.sync-retry-panel select{background:#fff;}
+  .sync-retry-panel .retry-warning{padding:10px 12px;border-radius:10px;background:#fff3e7;color:#7a4311;font-size:11px;line-height:1.45;margin:0 0 12px;}
 
   /* Acabamento visual do painel */
   body{background:linear-gradient(180deg,#edf5ff 0,#f6f9fd 310px,#f6f9fd 100%);}
@@ -435,7 +442,7 @@
 <div class="toast" id="toast"></div>
 <script src="store.js"></script>
 <script>
-var currentStage=null,currentPersonId=null,pendingRoutePersonId=null,newPersonStage=null,statPeriod=7;
+var currentStage=null,currentPersonId=null,pendingRoutePersonId=null,newPersonStage=null,statPeriod=7,retryingInChurch=false;
 
 function getDailyPanelPassword(){
   var now=new Date();
@@ -800,11 +807,11 @@ function formatDateBR(iso){
   return new Date(iso).toLocaleDateString('pt-BR');
 }
 function peopleToCSV(list){
-  var headers=['Nome','WhatsApp','E-mail','Bairro','Idade','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Congregação','Departamento','Quem cadastrou','Quem coletou','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch'];
+  var headers=['Nome','WhatsApp','E-mail','Bairro','Data de nascimento','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Congregação','Departamento','Quem cadastrou','Quem coletou','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch','Erro de sincronização'];
   var rows=list.map(function(p){
     var stage=STAGES.find(function(s){return s.id===p.stage;});
     var sub=p.subStage?((SUB_STAGES.find(function(s){return s.id===p.subStage;})||{}).label||p.subStage):'';
-    return [p.nome,p.telefone,p.email,p.bairro,p.idade,p.estadoCivil,p.nomeConjuge,stage?stage.label:p.stage,sub,p.congregacao,p.departamento,p.nomeCadastrador,p.quemColeta,formatDateBR(p.createdAt),formatDateBR(lastHistoryDate(p)),daysSince(lastHistoryDate(p)),p.pendingSync?'Sim':'Não']
+    return [p.nome,p.telefone,p.email,p.bairro,p.dataNascimento||p.idade,p.estadoCivil,p.nomeConjuge,stage?stage.label:p.stage,sub,p.congregacao,p.departamento,p.nomeCadastrador,p.quemColeta,formatDateBR(p.createdAt),formatDateBR(lastHistoryDate(p)),daysSince(lastHistoryDate(p)),p.pendingSync?'Sim':'Não',p.syncError||'']
         .map(csvEscape).join(';');
   });
       return headers.join(';')+'\r\n'+rows.join('\r\n');
@@ -822,7 +829,7 @@ function excelDateCell(iso){
   return excelCell(serial,'date');
 }
 function downloadExcel(filename,list){
-  var headers=['Nome','WhatsApp','E-mail','Bairro','Idade','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Congregação','Departamento','Quem cadastrou','Quem coletou','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch'];
+  var headers=['Nome','WhatsApp','E-mail','Bairro','Data de nascimento','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Congregação','Departamento','Quem cadastrou','Quem coletou','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch','Erro de sincronização'];
   var rows=list.map(function(p){
     var stage=STAGES.find(function(s){return s.id===p.stage;});
     var sub=p.subStage?((SUB_STAGES.find(function(s){return s.id===p.subStage;})||{}).label||p.subStage):'';
@@ -831,7 +838,7 @@ function downloadExcel(filename,list){
       excelCell(String(p.telefone||'').replace(/\\D/g,''),'phone'),
       excelCell(p.email),
       excelCell(p.bairro),
-      excelCell(p.idade,'number'),
+      excelCell(p.dataNascimento||p.idade),
       excelCell(p.estadoCivil),
       excelCell(p.nomeConjuge),
       excelCell(stage?stage.label:p.stage),
@@ -843,7 +850,8 @@ function downloadExcel(filename,list){
       excelDateCell(p.createdAt),
       excelDateCell(lastHistoryDate(p)),
       excelCell(daysSince(lastHistoryDate(p)),'number'),
-      excelCell(p.pendingSync?'Sim':'Não')
+      excelCell(p.pendingSync?'Sim':'Não'),
+      excelCell(p.syncError||'')
     ].join('')+'</tr>';
   });
   var table='<table><thead><tr>'+headers.map(function(h){return excelCell(h,'header');}).join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table>';
@@ -906,7 +914,7 @@ function renderStageList(stageId){
     var ds=daysSince(lastHistoryDate(p));
     h+='<div class="stage-list-item" onclick="openPerson(\''+p.id+'\')">'+avatarHtml(p,36)+
       '<div class="info"><strong>'+(p.nome||'?')+'</strong><small>'+ds;
-    if(p.pendingSync)h+=' · <span class="badge-pending">pendente</span>';
+    if(p.pendingSync)h+=' · <span class="badge-pending"'+(p.syncError?' title="'+excelEscape(p.syncError)+'"':'')+'>pendente</span>';
     if(p.agenteIntegrante&&stageId==='gc')h+=' · Agente: '+p.agenteIntegrante;
     h+='</small></div><i class="ti ti-chevron-right" style="color:var(--muted)"></i></div>';
   });}
@@ -914,6 +922,102 @@ function renderStageList(stageId){
 }
 
 function saveResp(){if(!currentStage)return;Store.setResponsavel(currentStage,document.getElementById('stageResp').value.trim());renderAll();}
+
+function congregationDisplayName(id){
+  var names={
+    '36034':'AD | Amorinópolis','36026':'AD | Aragarças','36035':'AD | Arenópolis',
+    '36036':'AD | Barra do Garças','36037':'AD | Betel','36038':'AD | Boa Vista',
+    '36039':'AD | Bom Jardim','36040':'AD | Caiapônia','36041':'AD | Canaã',
+    '36042':'AD | Céu Azul/Girassol','36043':'AD | Dona Ilza','36044':'AD | Doverlândia',
+    '36045':'AD | Gameleira 1','36046':'AD | Genoveva','36047':'AD | Jardim Adriana',
+    '36027':'AD | Jardim Floresta','36048':'AD | Jardim Helena','36049':'AD | Lage',
+    '36050':'AD | Laranjeiras','36051':'AD | Maranata','36052':'AD | Mariana',
+    '36053':'AD | Montividu','36054':'AD | Morada do Sol','36028':'AD | Palestina',
+    '36055':'AD | Paulo Campos','36056':'AD | Piranhas','36057':'AD | Planalto Verde',
+    '36015':'AD | Pontal dos Buritis','36016':'AD | Popular','36017':'AD | Primavera',
+    '36018':'AD | Promissão','36019':'AD | Recanto do Bosque','36020':'AD | Riverlândia',
+    '36021':'AD | Rondonópolis','36029':'AD | Santo Agostinho',
+    '36022':'AD | Santo Antônio da Barra','36014':'AD | Sede','36023':'AD | Serra Dourada',
+    '36024':'AD | Vaianópolis','36025':'AD | Veneza','36030':'AD | Vila Borges',
+    '36031':'AD | Vila Maria','36032':'AD | Vila Olinda'
+  };
+  var value=String(id||'');
+  return (names[value]||'Igreja')+' ('+value+')';
+}
+
+function renderInChurchRetryForm(person){
+  var maritalOptions=['','Solteiro(a)','Noivo(a)','Casado(a)','Divorciado(a)','Viúvo(a)','União estável'];
+  var maritalLabels=['Selecione','Solteiro(a)','Noivo(a)','Casado(a)','Divorciado(a)','Viúvo(a)','União estável'];
+  var options=maritalOptions.map(function(value,index){
+    return '<option value="'+value+'"'+(person.estadoCivil===value?' selected':'')+'>'+maritalLabels[index]+'</option>';
+  }).join('');
+  return '<section class="sync-retry-panel" aria-labelledby="retrySyncTitle">'+
+    '<h3 id="retrySyncTitle">Corrigir cadastro e tentar novamente</h3>'+
+    '<p>Edite os dados que a API recusou. As correções serão salvas no painel antes da nova tentativa.</p>'+
+    '<div class="retry-warning">A tentativa anterior pode ter chegado ao inChurch mesmo sem resposta. Confira se a pessoa já existe antes de reenviar para evitar duplicidade.</div>'+
+    '<label for="retryNome">Nome completo *</label><input id="retryNome" type="text" maxlength="120" value="'+excelEscape(person.nome||'')+'" autocomplete="name">'+
+    '<label for="retryTelefone">WhatsApp *</label><input id="retryTelefone" type="tel" inputmode="tel" maxlength="15" value="'+excelEscape(person.telefone||'')+'" placeholder="(62) 9 0000-0000" autocomplete="tel">'+
+    '<label for="retryEmail">E-mail</label><input id="retryEmail" type="email" maxlength="254" value="'+excelEscape(person.email||'')+'" autocomplete="email">'+
+    '<label for="retryNascimento">Data de nascimento</label><input id="retryNascimento" type="date" min="1900-01-01" value="'+excelEscape(person.dataNascimento||'')+'">'+
+    '<label for="retryEstadoCivil">Estado civil</label><select id="retryEstadoCivil">'+options+'</select>'+
+    '<label for="retryIgrejaAnterior">Igreja anterior (se aplicável)</label><input id="retryIgrejaAnterior" type="text" maxlength="200" value="'+excelEscape(person.igrejaAnterior||'')+'">'+
+    '<button id="retryInChurchBtn" class="btn-primary block" style="margin-top:14px" type="button" onclick="saveAndRetryInChurch()"><i class="ti ti-refresh"></i>Salvar ajustes e tentar novamente</button>'+
+    '</section>';
+}
+
+function setupRetryForm(){
+  var phone=document.getElementById('retryTelefone');
+  if(phone)phone.addEventListener('input',function(){
+    this.value=formatBrazilianPhone(this.value);
+    this.setSelectionRange(this.value.length,this.value.length);
+  });
+  var email=document.getElementById('retryEmail');
+  if(email)email.addEventListener('blur',function(){this.value=this.value.trim().toLowerCase();});
+  var date=document.getElementById('retryNascimento');
+  if(date){
+    var now=new Date();
+    date.max=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+  }
+}
+
+async function saveAndRetryInChurch(){
+  if(retryingInChurch)return;
+  var person=Store.getPeople().find(function(item){return item.id===currentPersonId;});
+  if(!person||person.inchurchId){showToast('Este cadastro não pode ser reenviado como novo.');return;}
+  if(!confirm('Confirme que verificou no inChurch se a pessoa ainda não foi criada. A tentativa anterior pode ter sido processada sem resposta. Deseja continuar?'))return;
+  var nome=document.getElementById('retryNome').value.trim();
+  var telefone=formatBrazilianPhone(document.getElementById('retryTelefone').value);
+  var email=document.getElementById('retryEmail').value.trim().toLowerCase();
+  var dataNascimento=document.getElementById('retryNascimento').value;
+  if(nome.length<2){showToast('Informe o nome completo.');return;}
+  if(!isValidBrazilianPhone(telefone)){showToast('Confira o WhatsApp: informe DDD e 10 ou 11 dígitos.');return;}
+  if(email&&!isValidEmail(email)){showToast('Confira o e-mail.');return;}
+  if(dataNascimento&&!isValidBirthDate(dataNascimento)){showToast('Confira a data de nascimento.');return;}
+  var button=document.getElementById('retryInChurchBtn');
+  retryingInChurch=true;
+  button.disabled=true;
+  button.setAttribute('aria-busy','true');
+  button.innerHTML='<i class="ti ti-loader"></i>Salvando e validando...';
+  var result;
+  try{
+    result=await Store.updatePersonAndRetrySync(currentPersonId,{
+      nome:nome,
+      telefone:telefone,
+      email:email,
+      dataNascimento:dataNascimento,
+      estadoCivil:document.getElementById('retryEstadoCivil').value,
+      igrejaAnterior:document.getElementById('retryIgrejaAnterior').value.trim()
+    });
+  }catch(error){
+    result={saved:false,sync:{ok:false,error:'Falha inesperada ao salvar ou sincronizar.'}};
+  }
+  retryingInChurch=false;
+  if(result&&result.saved&&result.sync&&result.sync.ok)showToast('Cadastro corrigido e enviado ao inChurch.');
+  else showToast('Ainda não foi possível sincronizar. Confira o motivo no perfil.');
+  openPerson(currentPersonId);
+  renderAll();
+  if(currentStage)renderStageList(currentStage);
+}
 
 function openPerson(id){
   currentPersonId=id;
@@ -925,21 +1029,26 @@ function openPerson(id){
     '<div style="font-size:12px;color:var(--muted)">'+(s?s.label:'')+' · '+daysSince(lastHistoryDate(p))+'</div></div></div>';
   if(p.pendingSync)h+='<div class="badge-pending" style="margin-bottom:8px">Pré-cadastro pendente</div>';
   if(p.inchurchId)h+='<div class="tag" style="margin-bottom:8px">inChurch ID: '+p.inchurchId+'</div>';
+  if(p.syncError)h+='<div class="sync-error-message" role="alert"><strong>Detalhe da sincronização:</strong><br>'+excelEscape(p.syncError)+'</div>';
+  if(p.pendingSync&&!p.inchurchId)h+=renderInChurchRetryForm(p);
   h+='<div class="person-modal-content">';
-  if(p.telefone)h+=fld('WhatsApp',p.telefone);
-  if(p.email)h+=fld('E-mail',p.email);
-  if(p.bairro)h+=fld('Bairro',p.bairro);
-  if(p.idade)h+=fld('Idade',p.idade);
-  if(p.estadoCivil)h+=fld('Estado civil',p.estadoCivil);
-  if(p.nomeConjuge)h+=fld('Nome do cônjuge',p.nomeConjuge);
-  if(p.igrejaAnterior)h+=fld('Igreja anterior',p.igrejaAnterior);
-  if(p.temCarta)h+=fld('Carta de transferência',p.temCarta);
-  if(p.funcaoMinisterial)h+=fld('Função ministerial',p.funcaoMinisterial);
-  if(p.quisGC)h+=fld('Quer participar de GC',p.quisGC);
-  if(p.pedidoOracao)h+=fld('Pedido de oração',p.pedidoOracao);
-  if(p.nomeCadastrador)h+=fld('Quem cadastrou',p.nomeCadastrador);
-  if(p.quemColeta)h+=fld('Tipo de coleta',p.quemColeta);
-  if(p.departamento)h+=fld('Departamento',p.departamento);
+  if(p.telefone)h+=fld('WhatsApp',excelEscape(p.telefone));
+  if(p.email)h+=fld('E-mail',excelEscape(p.email));
+  if(p.congregacao)h+=fld('Igreja que realizou o cadastro',excelEscape(congregationDisplayName(p.congregacao)));
+  if(p.bairro)h+=fld('Bairro',excelEscape(p.bairro));
+  if(p.dataNascimento)h+=fld('Data de nascimento',new Date(p.dataNascimento+'T00:00:00').toLocaleDateString('pt-BR'));
+  else if(p.idade)h+=fld('Idade',p.idade);
+  if(p.estadoCivil)h+=fld('Estado civil',excelEscape(p.estadoCivil));
+  if(p.nomeConjuge)h+=fld('Nome do cônjuge',excelEscape(p.nomeConjuge));
+  if(p.igrejaAnterior)h+=fld(p.quemColeta==='Autocadastro (QR code)'?'Igreja que frequenta':'Igreja anterior',excelEscape(p.igrejaAnterior));
+  if(p.temCarta)h+=fld('Carta de transferência',excelEscape(p.temCarta));
+  if(p.funcaoMinisterial)h+=fld('Função ministerial',excelEscape(p.funcaoMinisterial));
+  if(p.quisGC)h+=fld('Quer participar de GC',excelEscape(p.quisGC));
+  if(p.pedidoOracao)h+=fld('Pedido de oração',excelEscape(p.pedidoOracao));
+  if(p.nomeCadastrador)h+=fld('Quem cadastrou',excelEscape(p.nomeCadastrador));
+  if(p.quemColeta)h+=fld('Tipo de coleta',excelEscape(p.quemColeta));
+  if(p.departamento)h+=fld('Departamento',excelEscape(p.departamento));
+  if(p.notas)h+=fld(p.quemColeta==='Autocadastro (QR code)'?'Resposta do visitante / observações':'Observações',excelEscape(p.notas));
   if(p.stage==='gc'){
     h+='<div class="detail-section"><h4>Agente integrante</h4><div class="agente-field">'+
       '<label>Quem é o responsável por acompanhar esta pessoa no GC?</label>'+
@@ -975,6 +1084,7 @@ function openPerson(id){
   }
   h+='<div class="move-btns"><button class="btn-danger" onclick="deleteP(\''+p.id+'\')"><i class="ti ti-trash"></i>Remover pessoa</button></div></div>';
   document.getElementById('personBody').innerHTML=h;
+  if(p.pendingSync&&!p.inchurchId)setupRetryForm();
   openModal('personModal');
 }
 
@@ -1077,21 +1187,30 @@ function selectRoute(route){
 function openNewPersonFromStage(){
   newPersonStage=currentStage;
   var h='<label>Nome completo *</label><input type="text" id="npNome" placeholder="Nome">'+
-    '<label>WhatsApp</label><input type="tel" id="npTel" placeholder="(62) 9 0000-0000">'+
-    '<label>E-mail</label><input type="email" id="npEmail" placeholder="nome@email.com">'+
+    '<label>WhatsApp</label><input type="tel" id="npTel" inputmode="tel" maxlength="15" placeholder="(62) 9 0000-0000">'+
+    '<label>E-mail</label><input type="email" id="npEmail" maxlength="254" placeholder="nome@email.com">'+
     '<label>Bairro</label><input type="text" id="npBairro" placeholder="Bairro">'+
     '<button class="btn-primary block" style="margin-top:14px" onclick="addPersonQuick()"><i class="ti ti-check"></i>Adicionar</button>';
   document.getElementById('newPersonBody').innerHTML=h;
+  document.getElementById('npTel').addEventListener('input',function(){
+    this.value=formatBrazilianPhone(this.value);
+    this.setSelectionRange(this.value.length,this.value.length);
+  });
+  document.getElementById('npEmail').addEventListener('blur',function(){ this.value=this.value.trim().toLowerCase(); });
   openModal('newPersonModal');
 }
 
 async function addPersonQuick(){
   var nome=document.getElementById('npNome').value.trim();
-  if(!nome){showToast('Preencha o nome.');return;}
+  if(nome.length<2){showToast('Preencha um nome com pelo menos 2 caracteres.');return;}
+  var telefone=formatBrazilianPhone(document.getElementById('npTel').value);
+  var email=document.getElementById('npEmail').value.trim().toLowerCase();
+  if(telefone&&!isValidBrazilianPhone(telefone)){showToast('Confira o WhatsApp: informe DDD e 10 ou 11 dígitos.');return;}
+  if(email&&!isValidEmail(email)){showToast('Confira o e-mail.');return;}
   var outcome=await Store.addPerson({
     nome:nome,
-    telefone:document.getElementById('npTel').value.trim(),
-    email:document.getElementById('npEmail').value.trim(),
+    telefone:telefone,
+    email:email,
     bairro:document.getElementById('npBairro').value.trim(),
     stage:newPersonStage||'visitante'
   });
@@ -1102,11 +1221,11 @@ async function addPersonQuick(){
   if(outcome&&outcome.saved&&sync.ok){
     showToast('Pessoa adicionada e enviada ao inChurch.');
   }else if(outcome&&outcome.saved&&sync.created&&sync.issue==='department'){
-    alert('O cadastro foi enviado ao inChurch, mas o vínculo do departamento falhou. Entre em contato com a direção para concluir o ajuste.');
+    alert('O cadastro foi enviado ao inChurch, mas o vínculo do departamento falhou. Entre em contato com a direção para concluir o ajuste.'+(sync.error?'\n\nMotivo: '+sync.error:''));
   }else if(outcome&&outcome.saved){
-    alert('O cadastro foi salvo no sistema da recepção, mas não foi enviado ao inChurch. Entre em contato com a direção para sincronizar. Não cadastre a mesma pessoa novamente.');
+    alert('O cadastro foi salvo no sistema da recepção, mas não foi enviado ao inChurch. Entre em contato com a direção para sincronizar. Não cadastre a mesma pessoa novamente.'+(sync.error?'\n\nMotivo: '+sync.error:''));
   }else{
-    alert('Não foi possível confirmar o salvamento e o envio ao inChurch. Entre em contato com a direção antes de tentar novamente, para evitar perda ou duplicidade.');
+    alert('Não foi possível confirmar o salvamento e o envio ao inChurch. Entre em contato com a direção antes de tentar novamente, para evitar perda ou duplicidade.'+(sync.error?'\n\nMotivo: '+sync.error:''));
   }
 }
 
