@@ -44,6 +44,7 @@
   .success p{color:var(--muted);font-size:13.5px;margin:0 0 24px;}
   .success .new-registration{margin-top:8px;}
   .success.is-visible .new-registration{animation:confirmation-rise .5s .35s ease-out both;}
+  .seg-carta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}.seg-carta button{min-height:44px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink-soft);font-size:12px;font-weight:600;padding:9px 11px;cursor:pointer}.seg-carta button.active{background:var(--blue-600);border-color:var(--blue-600);color:#fff}@media(max-width:560px){.seg-carta{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -68,6 +69,14 @@
       <div id="wrapIgrejaVisitante" style="display:none">
         <label for="igrejaVisitante">Qual igreja? *</label>
         <input type="text" id="igrejaVisitante" placeholder="Nome da igreja" maxlength="200">
+      </div>
+      <div id="wrapCartaVisitante" style="display:none">
+        <label>Tem carta de recomendação? *</label>
+        <div class="seg-carta" id="segCartaVisitante">
+          <button type="button" data-v="Sim" onclick="setCartaVisitante(this)">Sim</button>
+          <button type="button" data-v="Não" onclick="setCartaVisitante(this)">Não</button>
+        </div>
+        <input type="hidden" id="temCartaVisitante">
       </div>
       <label for="dataNascimento">Data de nascimento *</label>
       <input type="date" id="dataNascimento" min="1900-01-01" required>
@@ -104,8 +113,18 @@ birthDateInput.max=[localToday.getFullYear(),String(localToday.getMonth()+1).pad
 document.getElementById('fazParteIgreja').addEventListener('change',function(){
   var mostrar=this.value==='Sim';
   document.getElementById('wrapIgrejaVisitante').style.display=mostrar?'block':'none';
-  if(!mostrar)document.getElementById('igrejaVisitante').value='';
+  document.getElementById('wrapCartaVisitante').style.display=mostrar?'block':'none';
+  if(!mostrar){
+    document.getElementById('igrejaVisitante').value='';
+    document.getElementById('temCartaVisitante').value='';
+    document.querySelectorAll('#segCartaVisitante button').forEach(function(b){ b.classList.remove('active'); });
+  }
 });
+function setCartaVisitante(btn){
+  document.querySelectorAll('#segCartaVisitante button').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('temCartaVisitante').value=btn.dataset.v;
+}
 function showSyncOutcome(outcome){
   var sync=outcome&&outcome.sync?outcome.sync:{ok:false,created:false};
   var saved=!!(outcome&&outcome.saved);
@@ -150,6 +169,8 @@ async function enviar(){
   if(!fazParteIgreja){ showToast('Responda se faz parte de alguma igreja.'); return; }
   var igrejaVisitante=document.getElementById('igrejaVisitante').value.trim();
   if(fazParteIgreja==='Sim'&&!igrejaVisitante){ showToast('Informe o nome da igreja.'); return; }
+  var temCartaVisitante=document.getElementById('temCartaVisitante').value;
+  if(fazParteIgreja==='Sim'&&!temCartaVisitante){ showToast('Selecione se tem carta de recomendação.'); return; }
   var dataNascimento=document.getElementById('dataNascimento').value;
   if(!dataNascimento){ showToast('Preencha sua data de nascimento.'); return; }
   if(!isValidBirthDate(dataNascimento)){ showToast('Confira sua data de nascimento: ela deve ser válida e não futura.'); return; }
@@ -165,7 +186,8 @@ async function enviar(){
     dataNascimento: dataNascimento,
     fazParteIgreja: fazParteIgreja,
     igrejaAnterior: fazParteIgreja==='Sim'?igrejaVisitante:'',
-    notas: 'Faz parte de alguma igreja? ' + fazParteIgreja + (igrejaVisitante?'. Igreja: '+igrejaVisitante:''),
+    temCarta: fazParteIgreja==='Sim'?temCartaVisitante:'',
+    notas: 'Faz parte de alguma igreja? ' + fazParteIgreja + (igrejaVisitante?'. Igreja: '+igrejaVisitante:'') + (temCartaVisitante?'. Tem carta de recomendação: '+temCartaVisitante:''),
     quemColeta: 'Autocadastro (QR code)',
       stage: 'visitante'
     });
@@ -185,7 +207,10 @@ function cadastrarOutro(){
   document.getElementById('telefone').value = '';
   document.getElementById('fazParteIgreja').value = '';
   document.getElementById('igrejaVisitante').value = '';
+  document.getElementById('temCartaVisitante').value = '';
+  document.querySelectorAll('#segCartaVisitante button').forEach(function(b){ b.classList.remove('active'); });
   document.getElementById('wrapIgrejaVisitante').style.display='none';
+  document.getElementById('wrapCartaVisitante').style.display='none';
   document.getElementById('dataNascimento').value = '';
   document.getElementById('successScreen').classList.remove('is-visible');
   document.getElementById('successScreen').style.display = 'none';

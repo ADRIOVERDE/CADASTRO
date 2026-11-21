@@ -136,8 +136,12 @@
           <input type="text" id="nomeConjuge" placeholder="Nome completo do(a) cônjuge">
         </div>
       </div>
+      <!-- <div id="wrapReconciliado" style="display:none">
+        <label>Em qual igreja aceitou Jesus pela primeira vez? *</label>
+        <input type="text" id="igrejaAnterior" placeholder="Nome da igreja">
+      </div> -->
       <div id="wrapNovoMembro" style="display:none">
-        <label>Tem carta de transferência? *</label>
+        <label>Tem carta de recomendação? *</label>
         <div class="seg" id="segCarta">
           <button type="button" data-v="Sim" onclick="setSeg('segCarta','temCarta',this)">Sim</button>
           <button type="button" data-v="Não" onclick="setSeg('segCarta','temCarta',this)">Não</button>
@@ -219,8 +223,15 @@ function setCategoria(btn){
   btn.classList.add('active');
   categoriaAtual = btn.dataset.v;
   document.getElementById('wrapComum').style.display = 'block';
-  document.getElementById('wrapReconciliado').style.display = categoriaAtual === 'reconciliado' ? 'block' : 'none';
+  var wrapReconciliado = document.getElementById('wrapReconciliado');
+  if(wrapReconciliado) wrapReconciliado.style.display = categoriaAtual === 'reconciliado' ? 'block' : 'none';
   document.getElementById('wrapNovoMembro').style.display = categoriaAtual === 'novo_membro' ? 'block' : 'none';
+  if(categoriaAtual !== 'novo_membro'){
+    document.getElementById('temCarta').value = '';
+    document.getElementById('funcaoMinisterial').value = '';
+    document.getElementById('wrapFuncao').style.display = 'none';
+    document.querySelectorAll('#segCarta button').forEach(function(b){ b.classList.remove('active'); });
+  }
 }
 function setSeg(groupId, hiddenId, btn){
   document.querySelectorAll('#' + groupId + ' button').forEach(function(b){ b.classList.remove('active'); });
@@ -297,7 +308,7 @@ async function enviar(){
   }
   if(categoriaAtual === 'novo_membro'){
     var temCarta = document.getElementById('temCarta').value;
-    if(!temCarta){ showToast('Selecione se tem carta de transferência.'); return; }
+    if(!temCarta){ showToast('Selecione se tem carta de recomendação.'); return; }
     if(temCarta === 'Sim'){
       var funcao = document.getElementById('funcaoMinisterial').value.trim();
       if(!funcao){ showToast('Preencha a função ministerial.'); return; }

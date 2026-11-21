@@ -807,11 +807,12 @@ function formatDateBR(iso){
   return new Date(iso).toLocaleDateString('pt-BR');
 }
 function peopleToCSV(list){
-  var headers=['Nome','WhatsApp','E-mail','Bairro','Data de nascimento','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Congregação','Departamento','Quem cadastrou','Quem coletou','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch','Erro de sincronização'];
+  var headers=['Nome','WhatsApp','E-mail','Bairro','Data de nascimento','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Faz parte de outra igreja','Igreja anterior ou atual','Carta de recomendação','Função ministerial','Igreja que realizou o cadastro','Departamento','Quem cadastrou','Quem coletou','Observações','Quer participar de GC','Pedido de oração','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch','Erro de sincronização'];
   var rows=list.map(function(p){
     var stage=STAGES.find(function(s){return s.id===p.stage;});
     var sub=p.subStage?((SUB_STAGES.find(function(s){return s.id===p.subStage;})||{}).label||p.subStage):'';
-    return [p.nome,p.telefone,p.email,p.bairro,p.dataNascimento||p.idade,p.estadoCivil,p.nomeConjuge,stage?stage.label:p.stage,sub,p.congregacao,p.departamento,p.nomeCadastrador,p.quemColeta,formatDateBR(p.createdAt),formatDateBR(lastHistoryDate(p)),daysSince(lastHistoryDate(p)),p.pendingSync?'Sim':'Não',p.syncError||'']
+    var fazOutraIgreja=p.stage==='novo_membro'||p.igrejaAnterior?'Sim':'Não';
+    return [p.nome,p.telefone,p.email,p.bairro,p.dataNascimento||p.idade,p.estadoCivil,p.nomeConjuge,stage?stage.label:p.stage,sub,fazOutraIgreja,p.igrejaAnterior||'',p.temCarta||'',p.funcaoMinisterial||'',congregationDisplayName(p.congregacao),p.departamento,p.nomeCadastrador,p.quemColeta,p.notas||'',p.quisGC||'','',formatDateBR(p.createdAt),formatDateBR(lastHistoryDate(p)),daysSince(lastHistoryDate(p)),p.pendingSync?'Sim':'Não',p.syncError||'']
         .map(csvEscape).join(';');
   });
       return headers.join(';')+'\r\n'+rows.join('\r\n');
@@ -829,7 +830,7 @@ function excelDateCell(iso){
   return excelCell(serial,'date');
 }
 function downloadExcel(filename,list){
-  var headers=['Nome','WhatsApp','E-mail','Bairro','Data de nascimento','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Congregação','Departamento','Quem cadastrou','Quem coletou','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch','Erro de sincronização'];
+  var headers=['Nome','WhatsApp','E-mail','Bairro','Data de nascimento','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Faz parte de outra igreja','Igreja anterior ou atual','Carta de recomendação','Função ministerial','Igreja que realizou o cadastro','Departamento','Quem cadastrou','Quem coletou','Observações','Quer participar de GC','Pedido de oração','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch','Erro de sincronização'];
   var rows=list.map(function(p){
     var stage=STAGES.find(function(s){return s.id===p.stage;});
     var sub=p.subStage?((SUB_STAGES.find(function(s){return s.id===p.subStage;})||{}).label||p.subStage):'';
@@ -843,10 +844,17 @@ function downloadExcel(filename,list){
       excelCell(p.nomeConjuge),
       excelCell(stage?stage.label:p.stage),
       excelCell(sub),
-      excelCell(p.congregacao,'number'),
+      excelCell(fazOutraIgreja),
+      excelCell(p.igrejaAnterior||''),
+      excelCell(p.temCarta||''),
+      excelCell(p.funcaoMinisterial||''),
+      excelCell(congregationDisplayName(p.congregacao)),
       excelCell(p.departamento),
       excelCell(p.nomeCadastrador),
       excelCell(p.quemColeta),
+      excelCell(p.notas||''),
+      excelCell(p.quisGC||''),
+      excelCell(p.pedidoOracao||''),
       excelDateCell(p.createdAt),
       excelDateCell(lastHistoryDate(p)),
       excelCell(daysSince(lastHistoryDate(p)),'number'),
@@ -1040,8 +1048,9 @@ function openPerson(id){
   else if(p.idade)h+=fld('Idade',p.idade);
   if(p.estadoCivil)h+=fld('Estado civil',excelEscape(p.estadoCivil));
   if(p.nomeConjuge)h+=fld('Nome do cônjuge',excelEscape(p.nomeConjuge));
+  h+=fld('Faz parte de outra igreja',p.stage==='novo_membro'||p.igrejaAnterior?'Sim':'Não');
   if(p.igrejaAnterior)h+=fld(p.quemColeta==='Autocadastro (QR code)'?'Igreja que frequenta':'Igreja anterior',excelEscape(p.igrejaAnterior));
-  if(p.temCarta)h+=fld('Carta de transferência',excelEscape(p.temCarta));
+  if(p.temCarta)h+=fld('Carta de recomendação',excelEscape(p.temCarta));
   if(p.funcaoMinisterial)h+=fld('Função ministerial',excelEscape(p.funcaoMinisterial));
   if(p.quisGC)h+=fld('Quer participar de GC',excelEscape(p.quisGC));
   if(p.pedidoOracao)h+=fld('Pedido de oração',excelEscape(p.pedidoOracao));
