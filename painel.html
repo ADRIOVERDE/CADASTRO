@@ -738,29 +738,41 @@ function selectSearchResult(id){
   openPerson(id);
 }
 
-/* ===================== RELATÓRIOS (CSV) ===================== */
+/* ===================== RELATÓRIOS (EXCEL) ===================== */
 
-function csvEscape(val){
-  val=(val===undefined||val===null)?'':String(val);
-  if(/[";\n\r]/.test(val))return '"'+val.replace(/"/g,'""')+'"';
-  return val;
+function excelEscape(value){
+  return String(value===undefined||value===null?'':value)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+function excelCell(value,kind){
+  return '<td class="'+(kind==='header'?'header':kind==='number'?'number':'text')+'">'+excelEscape(value)+'</td>';
 }
 function formatDateBR(iso){
   if(!iso)return '';
-  return new Date(iso).toLocaleDateString('pt-BR');
+  var dateOnly=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(dateOnly)return dateOnly[3]+'/'+dateOnly[2]+'/'+dateOnly[1];
+  var date=new Date(iso);
+  return isNaN(date.getTime())?String(iso):date.toLocaleDateString('pt-BR');
 }
-function peopleToCSV(list){
+function peopleToExcelTable(list){
   var headers=['Nome','WhatsApp','E-mail','Bairro','Data de nascimento','Estado civil','Nome do cônjuge','Etapa','Sub-etapa','Faz parte de outra igreja','Igreja anterior ou atual','Carta de recomendação','Função ministerial','Igreja que realizou o cadastro','Departamento','Quem cadastrou','Quem coletou','Observações','Quer participar de GC','Pedido de oração','Cadastrado em','Última atualização','Dias na etapa atual','Pendente inChurch','Erro de sincronização'];
   var rows=list.map(function(p){
     var stage=STAGES.find(function(s){return s.id===p.stage;});
     var sub=p.subStage?((SUB_STAGES.find(function(s){return s.id===p.subStage;})||{}).label||p.subStage):'';
     var fazOutraIgreja=p.stage==='novo_membro'||p.igrejaAnterior?'Sim':'Não';
+    var stageDate=lastHistoryDate(p);
+    var parsedStageDate=stageDate?new Date(stageDate):null;
+    var daysInStage=parsedStageDate&&!isNaN(parsedStageDate.getTime())?Math.max(0,Math.floor((Date.now()-parsedStageDate.getTime())/86400000)):'';
     return '<tr>'+[
       excelCell(p.nome),
       excelCell(String(p.telefone||'').replace(/[^0-9]/g,''),'phone'),
       excelCell(p.email),
       excelCell(p.bairro),
-      excelCell(p.dataNascimento||p.idade),
+      excelCell(p.dataNascimento?formatDateBR(p.dataNascimento):(p.idade||'')),
       excelCell(p.estadoCivil),
       excelCell(p.nomeConjuge),
       excelCell(stage?stage.label:p.stage),
@@ -776,15 +788,18 @@ function peopleToCSV(list){
       excelCell(p.notas||''),
       excelCell(p.quisGC||''),
       excelCell(p.pedidoOracao||''),
-      excelCell(p.createdAt),
-      excelCell(lastHistoryDate(p)),
-      excelCell(daysSince(lastHistoryDate(p)),'number'),
+      excelCell(formatDateBR(p.createdAt)),
+      excelCell(formatDateBR(stageDate)),
+      excelCell(daysInStage,'number'),
       excelCell(p.pendingSync?'Sim':'Não'),
       excelCell(p.syncError||'')
     ].join('')+'</tr>';
   });
   var table='<table><thead><tr>'+headers.map(function(h){return excelCell(h,'header');}).join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table>';
-  var content='<!DOCTYPE html><html><head><meta charset="UTF-8"><style>table{border-collapse:collapse}td{border:1px solid #ccc;padding:5px}.header{font-weight:bold;background:#d9eaf7}.phone{mso-number-format:"0"}.number{mso-number-format:"0"}.date{mso-number-format:"dd/mm/yyyy"}.text{mso-number-format:"\\@"}</style></head><body>'+table+'</body></html>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>table{border-collapse:collapse;font-family:Arial,sans-serif;font-size:10pt}td{border:1px solid #ccc;padding:5px;vertical-align:top}.header{font-weight:bold;background:#d9eaf7}.number{mso-number-format:"0"}.text{mso-number-format:"\\@"}</style></head><body>'+table+'</body></html>';
+}
+function downloadExcel(filename,list){
+  var content=peopleToExcelTable(list);
   var blob=new Blob(['\uFEFF'+content],{type:'application/vnd.ms-excel;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
@@ -877,6 +892,7 @@ function congregationDisplayName(id){
     '36031':'AD | Vila Maria','36032':'AD | Vila Olinda'
   };
   var value=String(id||'');
+  if(!value)return 'Não informada';
   return (names[value]||'Igreja')+' ('+value+')';
 }
 
